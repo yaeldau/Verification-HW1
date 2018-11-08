@@ -4,8 +4,8 @@ This project is the starting point the practical HW in [Introduction to Formal V
 explains how the homework system is built, how to submit your tasks and how they will be tested. So please read carefully.
 
 ## Design Overview
-During the practical parts of the class, you will implement a transition system library using Java 8. Your implementation will be based on a provided interface, and
-on other supporting classes. It will be tested using a set of unit tests.
+During the practical parts of the class, you will implement a transition system library using Java 11. Your implementation will be based on a
+ provided interface, and on other supporting classes. It will be tested using a set of unit tests.
 
 In order to achieve good modularity, the system is composed of three different code bases:
 * **[HW-Definitions](https://github.com/BGU-FVM/HW-Definitions)** - Code containing the definitions of the interfaces and classes. It also contains many utility classes
@@ -19,7 +19,7 @@ In order to achieve good modularity, the system is composed of three different c
 
 ## Project Setup
 
-**For this project, use Java 8 (a.k.a. JDK-1.8). Do not use Java 9.**
+**For this project, use Java 11 (a.k.a. JDK-11).**
 
 1. `git clone` all the above projects. If you don't like Git, you can also download a zip file (look for the ["clone or download" button in the project's page](docs/dl-zip.png)).
 2. Using your favorite IDE, setup each cloned repository as a project. Then, setup the projects dependencies like so:
@@ -50,6 +50,25 @@ but that would allow you to accidentally change our code and inadvertently creat
 No, you can download the zip files and do everything manually. But note that:
 * Using Git will make it easier for you to update your copies if we make changes to the central code.
 * You'll have to start using a versioning system at some point, and if you haven't done so already, 4th year of software engineering degree is about time. Thank us later.
+
+### How can I draw my transition systems like you show in the slides?
+The general process is to:
+1. Create a `TransitionSystem` instance, populate it as you like.
+2. Pass it to `GraphvizPainter` and call `makeDotCode`. There are multiple painters, and you can create your own (tell us if you do!).
+   To get you started, the simplest invocation is to use `toStringPainter`, like so:
+
+       System.out.println( GraphvizPainter.toStringPainter().makeDotCode(ts) );
+
+3. No you have the graph description in the dot language. Use Graphviz ( http://graphviz.org) to turn
+   it into a drawing (we recommend PDF for any non-trivial system).
+
+
+### If I lost points due to an error in my code in HW `i`, and I didn't fix it, will I lose points again in HW `i+1`?
+Yes. We are using a "layered" approach for developing the system here, so if a lower layer does not work, the
+layers relying on it won't work too. Plus, you should probably fix your code so that you understand what you
+got wrong.
+
+_(An actual question. You can't make this stuff up.)_
 
 ### Things don't work
 Give it another go, ask other students, or try to identify the problem and search for a solution on-line.
