@@ -132,7 +132,13 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> boolean isMaximalExecutionFragment(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement isMaximalExecutionFragment
+        for (Transition tran : ts.getTransitions()){
+            if (tran.getFrom().equals(e.last())){
+                return false;
+            }
+        }
+
+        return isExecutionFragment(ts, e);
     }
 
     @Override
