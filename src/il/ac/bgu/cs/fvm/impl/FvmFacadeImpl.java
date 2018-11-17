@@ -72,29 +72,7 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> boolean isExecution(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
-        if(!ts.getInitialStates().contains(e.head())){
-            return false;
-        }
-
-        while (e.size() > 2){
-            Transition t = new Transition(e.head(), e.tail().head(), e.tail().tail().head());
-            if (!ts.getTransitions().contains(t))
-                return false;
-            e = e.tail().tail();
-        }
-        if (e.size() == 1){
-            if (!ts.getStates().contains(e.head())) {
-                return false;
-            }
-
-            for (Transition tran : ts.getTransitions()){
-                if (tran.getFrom().equals(e.head())){
-                    return false;
-                }
-            }
-        }
-
-        return true;
+        return isInitialExecutionFragment(ts, e) && isMaximalExecutionFragment(ts, e);
     }
 
     @Override
@@ -132,18 +110,21 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> boolean isMaximalExecutionFragment(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
-        for (Transition tran : ts.getTransitions()){
-            if (tran.getFrom().equals(e.last())){
-                return false;
-            }
-        }
-
-        return isExecutionFragment(ts, e);
+        return isStateTerminal(ts, e.last()) && isExecutionFragment(ts, e);
     }
 
     @Override
     public <S, A> boolean isStateTerminal(TransitionSystem<S, A, ?> ts, S s) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement isStateTerminal
+        if (!ts.getStates().contains(s))
+            throw new StateNotFoundException((S)s);
+
+        for (Transition tran : ts.getTransitions()){
+            if (tran.getFrom().equals(s)){
+                return false;
+            }
+        }
+
+        return true;
     }
 
     @Override
