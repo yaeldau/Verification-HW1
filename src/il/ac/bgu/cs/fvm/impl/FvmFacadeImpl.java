@@ -17,9 +17,7 @@ import il.ac.bgu.cs.fvm.transitionsystem.TransitionSystem;
 import il.ac.bgu.cs.fvm.util.Pair;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
 import java.io.InputStream;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Implement the methods in this class. You may add additional classes as you
@@ -36,12 +34,39 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> boolean isActionDeterministic(TransitionSystem<S, A, P> ts) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement isActionDeterministic
+
+        if (ts.getInitialStates().size() > 1)
+            return false;
+
+        Set<Pair<S, A>> fromAndAction = new HashSet<>();
+        for ( Transition tran : ts.getTransitions()){
+            Pair<S, A> p = new Pair(tran.getFrom(), tran.getAction());
+            if (fromAndAction.contains(p)) {
+                return false;
+            }
+            fromAndAction.add(p);
+        }
+        return true;
     }
 
     @Override
     public <S, A, P> boolean isAPDeterministic(TransitionSystem<S, A, P> ts) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement isAPDeterministic
+        if (ts.getInitialStates().size() > 1)
+            return false;
+
+        Map<S, Set<P>> fromAndToTag = new HashMap<>();
+        for ( Transition tran : ts.getTransitions()){
+            Set<P> aps = ts.getLabelingFunction().get(tran.getTo());
+            if (fromAndToTag.get(tran.getFrom()) != null){
+                if (fromAndToTag.get(tran.getFrom()).retainAll(aps) || aps.equals(fromAndToTag.get(tran.getFrom())))
+                    return false;
+            }
+            else {
+                fromAndToTag.put((S) tran.getFrom(), new HashSet<P>());
+            }
+            fromAndToTag.get(tran.getFrom()).addAll(aps);
+        }
+        return true;
     }
 
     @Override
