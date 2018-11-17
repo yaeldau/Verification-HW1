@@ -242,7 +242,76 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S1, S2, A, P> TransitionSystem<Pair<S1, S2>, A, P> interleave(TransitionSystem<S1, A, P> ts1, TransitionSystem<S2, A, P> ts2) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement interleave
+        TransitionSystem ts = new TransitionSystemImpl();
+        ts.addAllActions(ts1.getActions());
+        ts.addAllActions(ts2.getActions());
+        ts.addAllAtomicPropositions(ts1.getAtomicPropositions());
+        ts.addAllAtomicPropositions(ts2.getAtomicPropositions());
+
+        Set<Pair<S1, S2>> states = new HashSet<>();
+        for (S1 s1 : ts1.getStates()) {
+            for (S2 s2 : ts2.getStates()) {
+                states.add(new Pair<>(s1, s2));
+            }
+        }
+        ts.addAllStates(states);
+
+        for (Pair<S1,S2> s : states){
+            if (ts1.getInitialStates().contains(s.first) && ts2.getInitialStates().contains(s.second)) {
+                ts.setInitial(s, true);
+            }
+        }
+
+
+        for (Transition tran1 : ts1.getTransitions()){
+            for(Pair<S1, S2> sFrom : states){
+                if (tran1.getFrom().equals(sFrom.first)){
+                    for(Pair<S1, S2> sTo : states) {
+                        if (tran1.getTo().equals(sTo.first)) {
+                            if (sFrom.second.equals(sTo.second)) {
+                                ts.addTransition(new Transition(sFrom, tran1.getAction(), sTo));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for (Transition tran2 : ts2.getTransitions()){
+            for(Pair<S1, S2> sFrom : states){
+                if (tran2.getFrom().equals(sFrom.second)){
+                    for(Pair<S1, S2> sTo : states) {
+                        if (tran2.getTo().equals(sTo.second)) {
+                                if (sFrom.first.equals(sTo.first)) {
+                                ts.addTransition(new Transition(sFrom, tran2.getAction(), sTo));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Map<S1, Set<P>> labels1 = ts1.getLabelingFunction();
+        for (S1 s1 : labels1.keySet()){
+            for(Pair<S1,S2> s : states){
+                if (s.first.equals(s1)){
+                    for (P p : labels1.get(s.first)) {
+                        ts.addToLabel(s, p);
+                    }
+                }
+            }
+        }
+        Map<S2, Set<P>> labels2 = ts2.getLabelingFunction();
+        for (S2 s2 : labels2.keySet()){
+            for(Pair<S1,S2> s : states){
+                if (s.second.equals(s2)){
+                    for (P p : labels2.get(s.second)) {
+                        ts.addToLabel(s, p);
+                    }
+                }
+            }
+        }
+
+        return ts;
     }
 
     @Override

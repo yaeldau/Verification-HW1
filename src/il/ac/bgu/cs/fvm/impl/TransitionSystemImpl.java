@@ -53,7 +53,7 @@ public class TransitionSystemImpl<STATE,ACTION,ATOMIC_PROPOSITION> implements Tr
             }
         }
         else
-            throw new StateNotFoundException("ERROR: setInitial function");
+            throw new StateNotFoundException(aState);
     }
 
     @Override
