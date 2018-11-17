@@ -129,22 +129,52 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S> Set<S> post(TransitionSystem<S, ?, ?> ts, S s) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement post
+        if (!ts.getStates().contains(s))
+            throw new StateNotFoundException(s);
+
+        Set<S> post = new HashSet<>();
+        for (Transition tran : ts.getTransitions()){
+            if (tran.getFrom().equals(s)){
+                post.add((S)tran.getTo());
+            }
+        }
+
+        return post;
     }
 
     @Override
     public <S> Set<S> post(TransitionSystem<S, ?, ?> ts, Set<S> c) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement post
+        Set<S> post = new HashSet<>();
+        for (S s : c){
+            post.addAll(post(ts, s));
+        }
+
+        return post;
     }
 
     @Override
     public <S, A> Set<S> post(TransitionSystem<S, A, ?> ts, S s, A a) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement post
+        if (!ts.getStates().contains(s))
+            throw new StateNotFoundException(s);
+
+        Set<S> post = new HashSet<>();
+        for (Transition tran : ts.getTransitions()){
+            if (tran.getFrom().equals(s) && tran.getAction().equals(a)){
+                post.add((S)tran.getTo());
+            }
+        }
+
+        return post;
     }
 
     @Override
     public <S, A> Set<S> post(TransitionSystem<S, A, ?> ts, Set<S> c, A a) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement post
+        Set<S> post = new HashSet<>();
+        for (S s : c){
+            post.addAll(post(ts, s, a));
+        }
+
+        return post;
     }
 
     @Override
