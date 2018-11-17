@@ -30,7 +30,7 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> TransitionSystem<S, A, P> createTransitionSystem() {
-        TransitionSystem ts = new TransitionSystemImpl();
+        TransitionSystem ts = new TransitionSystemImpl<S, A, P>();
         return ts;
     }
 
