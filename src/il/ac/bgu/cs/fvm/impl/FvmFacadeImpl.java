@@ -5,6 +5,7 @@ import il.ac.bgu.cs.fvm.automata.Automaton;
 import il.ac.bgu.cs.fvm.automata.MultiColorAutomaton;
 import il.ac.bgu.cs.fvm.channelsystem.ChannelSystem;
 import il.ac.bgu.cs.fvm.circuits.Circuit;
+import il.ac.bgu.cs.fvm.exceptions.ActionNotFoundException;
 import il.ac.bgu.cs.fvm.exceptions.FVMException;
 import il.ac.bgu.cs.fvm.exceptions.StateNotFoundException;
 import il.ac.bgu.cs.fvm.ltl.LTL;
@@ -98,7 +99,26 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> boolean isExecutionFragment(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement isExecutionFragment
+        while (e.size() > 2){
+            if (!ts.getStates().contains(e.head()))
+                throw new StateNotFoundException(e.head());
+            if (!ts.getStates().contains(e.tail().tail().head()))
+                throw new StateNotFoundException(e.tail().tail().head());
+            if (!ts.getActions().contains(e.tail().head()))
+                throw new ActionNotFoundException(e.tail().head());
+
+            Transition t = new Transition(e.head(), e.tail().head(), e.tail().tail().head());
+            if (!ts.getTransitions().contains(t))
+                return false;
+            e = e.tail().tail();
+        }
+        if (e.size() == 1){
+            if (!ts.getStates().contains(e.head())) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     @Override
