@@ -123,7 +123,11 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> boolean isInitialExecutionFragment(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement isInitialExecutionFragment
+        if(!ts.getInitialStates().contains(e.head())){
+            return false;
+        }
+
+        return isExecutionFragment(ts, e);
     }
 
     @Override
