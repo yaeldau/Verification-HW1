@@ -71,7 +71,29 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> boolean isExecution(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement isExecution
+        if(!ts.getInitialStates().contains(e.head())){
+            return false;
+        }
+
+        while (e.size() > 2){
+            Transition t = new Transition(e.head(), e.tail().head(), e.tail().tail().head());
+            if (!ts.getTransitions().contains(t))
+                return false;
+            e = e.tail().tail();
+        }
+        if (e.size() == 1){
+            if (!ts.getStates().contains(e.head())) {
+                return false;
+            }
+
+            for (Transition tran : ts.getTransitions()){
+                if (tran.getFrom().equals(e.head())){
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     @Override
