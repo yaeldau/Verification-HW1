@@ -316,7 +316,129 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S1, S2, A, P> TransitionSystem<Pair<S1, S2>, A, P> interleave(TransitionSystem<S1, A, P> ts1, TransitionSystem<S2, A, P> ts2, Set<A> handShakingActions) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement interleave
+        TransitionSystem ts = new TransitionSystemImpl();
+        ts.addAllActions(ts1.getActions());
+        ts.addAllActions(ts2.getActions());
+        ts.addAllAtomicPropositions(ts1.getAtomicPropositions());
+        ts.addAllAtomicPropositions(ts2.getAtomicPropositions());
+
+        Set<Pair<S1, S2>> states = new HashSet<>();
+        for (S1 s1 : ts1.getStates()) {
+            for (S2 s2 : ts2.getStates()) {
+                states.add(new Pair<>(s1, s2));
+            }
+        }
+        ts.addAllStates(states);
+
+        for (Pair<S1,S2> s : states){
+            if (ts1.getInitialStates().contains(s.first) && ts2.getInitialStates().contains(s.second)) {
+                ts.setInitial(s, true);
+            }
+        }
+
+
+        Set<Transition> tsTrans = new HashSet<>();
+        for (Transition tran1 : ts1.getTransitions()){
+            if (!handShakingActions.contains(tran1.getAction())) {
+                for (Pair<S1, S2> sFrom1 : states) {
+                    if (tran1.getFrom().equals(sFrom1.first)) {
+                        for (Pair<S1, S2> sTo : states) {
+                            if (tran1.getTo().equals(sTo.first)) {
+                                if (sFrom1.second.equals(sTo.second)) {
+                                    Transition toAdd = new Transition<>(sFrom1, tran1.getAction(), sTo);
+                                    ts.addTransition(toAdd);
+                                    tsTrans.add(toAdd);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else{
+                for (Pair<S1, S2> sFrom1 : states) {
+                    if (tran1.getFrom().equals(sFrom1.first)) {
+                        for (Pair<S1, S2> sTo : states) {
+                            if (tran1.getTo().equals(sTo.first)) {
+                                if (ts2.getTransitions().contains(new Transition<>(sFrom1.second, tran1.getAction(), sTo.second))) {
+                                    Transition toAdd = new Transition<>(sFrom1, tran1.getAction(), sTo);
+                                    ts.addTransition(toAdd);
+                                    tsTrans.add(toAdd);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for (Transition tran2 : ts2.getTransitions()){
+            if (!handShakingActions.contains(tran2.getAction())) {
+                for (Pair<S1, S2> sFrom : states) {
+                    if (tran2.getFrom().equals(sFrom.second)) {
+                        for (Pair<S1, S2> sTo : states) {
+                            if (tran2.getTo().equals(sTo.second)) {
+                                if (sFrom.first.equals(sTo.first)) {
+                                    Transition toAdd = new Transition<>(sFrom, tran2.getAction(), sTo);
+                                    ts.addTransition(toAdd);
+                                    tsTrans.add(toAdd);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else{
+                for (Pair<S1, S2> sFrom2 : states) {
+                    if (tran2.getFrom().equals(sFrom2.second)) {
+                        for (Pair<S1, S2> sTo : states) {
+                            if (tran2.getTo().equals(sTo.second)) {
+                                if (ts1.getTransitions().contains(new Transition<>(sFrom2.first, tran2.getAction(), sTo.first))) {
+                                    Transition toAdd = new Transition<>(sFrom2, tran2.getAction(), sTo);
+                                    ts.addTransition(toAdd);
+                                    tsTrans.add(toAdd);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+        Set<Pair<S1,S2>> newStates = reach(ts);
+        for (Pair<S1,S2> s : states) {
+            if (!newStates.contains(s)) {
+                for (Transition t : tsTrans){
+                    if (t.getFrom().equals(s) || t.getTo().equals(s)) {
+                        ts.removeTransition(t);
+                    }
+                }
+                ts.removeState(s);
+            }
+        }
+
+
+        Map<S1, Set<P>> labels1 = ts1.getLabelingFunction();
+        for (S1 s1 : labels1.keySet()){
+            for(Pair<S1,S2> s : states){
+                if (s.first.equals(s1)){
+                    for (P p : labels1.get(s.first)) {
+                        ts.addToLabel(s, p);
+                    }
+                }
+            }
+        }
+        Map<S2, Set<P>> labels2 = ts2.getLabelingFunction();
+        for (S2 s2 : labels2.keySet()){
+            for(Pair<S1,S2> s : states){
+                if (s.second.equals(s2)){
+                    for (P p : labels2.get(s.second)) {
+                        ts.addToLabel(s, p);
+                    }
+                }
+            }
+        }
+
+        return ts;
     }
 
     @Override
