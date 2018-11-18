@@ -92,7 +92,7 @@ public class TransitionSystemImpl<STATE,ACTION,ATOMIC_PROPOSITION> implements Tr
     @Override
     public void addToLabel(Object s, Object l) throws FVMException {
         if (!aps.contains((ATOMIC_PROPOSITION)l))
-            throw new FVMException("ERROR: the label isn't in the atomic proposition set");
+            throw new InvalidLablingPairException(s,l);
         if (!states.contains((STATE)s))
             throw new StateNotFoundException("ERROR: state s isn't in states set");
 

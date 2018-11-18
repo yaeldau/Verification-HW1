@@ -11,6 +11,7 @@ import il.ac.bgu.cs.fvm.exceptions.StateNotFoundException;
 import il.ac.bgu.cs.fvm.ltl.LTL;
 import il.ac.bgu.cs.fvm.programgraph.ActionDef;
 import il.ac.bgu.cs.fvm.programgraph.ConditionDef;
+import il.ac.bgu.cs.fvm.programgraph.PGTransition;
 import il.ac.bgu.cs.fvm.programgraph.ProgramGraph;
 import il.ac.bgu.cs.fvm.transitionsystem.AlternatingSequence;
 import il.ac.bgu.cs.fvm.transitionsystem.Transition;
@@ -449,7 +450,53 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <L1, L2, A> ProgramGraph<Pair<L1, L2>, A> interleave(ProgramGraph<L1, A> pg1, ProgramGraph<L2, A> pg2) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement interleave
+        ProgramGraph<Pair<L1, L2>, A> pg = new ProgramGraphImpl<>();
+        for(L1 l1 : pg1.getLocations()){
+            for(L2 l2 : pg2.getLocations()) {
+                pg.addLocation(new Pair<>(l1, l2));
+            }
+        }
+
+        for( Pair<L1, L2> l : pg.getLocations()){
+            if (pg1.getInitialLocations().contains(l.getFirst()) && pg2.getInitialLocations().contains(l.getSecond() )){
+                pg.setInitial(l, true);
+            }
+        }
+
+        pg1.getInitalizations().retainAll(pg2.getInitalizations());
+        for (List<String> list : pg1.getInitalizations()){
+            pg.addInitalization(list);
+        }
+
+
+        for (PGTransition tran1 : pg1.getTransitions()){
+            for(Pair<L1, L2> sFrom : pg.getLocations()){
+                if (tran1.getFrom().equals(sFrom.first)){
+                    for(Pair<L1, L2> sTo : pg.getLocations()) {
+                        if (tran1.getTo().equals(sTo.first)) {
+                            if (sFrom.second.equals(sTo.second)) {
+                                pg.addTransition(new PGTransition(sFrom, tran1.getCondition(), tran1.getAction(), sTo));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for (PGTransition tran2 : pg2.getTransitions()){
+            for(Pair<L1, L2> sFrom : pg.getLocations()){
+                if (tran2.getFrom().equals(sFrom.second)){
+                    for(Pair<L1, L2> sTo : pg.getLocations()) {
+                        if (tran2.getTo().equals(sTo.second)) {
+                            if (sFrom.first.equals(sTo.first)) {
+                                pg.addTransition(new PGTransition(sFrom, tran2.getCondition(), tran2.getAction(), sTo));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return pg;
     }
 
     @Override
