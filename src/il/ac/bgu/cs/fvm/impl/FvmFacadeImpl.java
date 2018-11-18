@@ -443,7 +443,8 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <L, A> ProgramGraph<L, A> createProgramGraph() {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement createProgramGraph
+        ProgramGraph pg = new ProgramGraphImpl();
+        return pg;
     }
 
     @Override
