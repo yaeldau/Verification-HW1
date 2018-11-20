@@ -463,9 +463,13 @@ public class FvmFacadeImpl implements FvmFacade {
             }
         }
 
-        pg1.getInitalizations().retainAll(pg2.getInitalizations());
-        for (List<String> list : pg1.getInitalizations()){
-            pg.addInitalization(list);
+
+        for (List<String> l1 : pg1.getInitalizations()){
+            for (List<String> l2 : pg2.getInitalizations()){
+                List<String> l = new ArrayList<>(l1);
+                l.addAll(l2);
+                pg.addInitalization(l);
+            }
         }
 
 
