@@ -1,5 +1,6 @@
 package il.ac.bgu.cs.fvm.impl;
 
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import il.ac.bgu.cs.fvm.FvmFacade;
 import il.ac.bgu.cs.fvm.automata.Automaton;
 import il.ac.bgu.cs.fvm.automata.MultiColorAutomaton;
@@ -16,7 +17,9 @@ import il.ac.bgu.cs.fvm.programgraph.ProgramGraph;
 import il.ac.bgu.cs.fvm.transitionsystem.AlternatingSequence;
 import il.ac.bgu.cs.fvm.transitionsystem.Transition;
 import il.ac.bgu.cs.fvm.transitionsystem.TransitionSystem;
+import il.ac.bgu.cs.fvm.util.CollectionHelper;
 import il.ac.bgu.cs.fvm.util.Pair;
+import il.ac.bgu.cs.fvm.util.Util;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
 import java.io.InputStream;
 import java.util.*;
@@ -505,7 +508,197 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystemFromCircuit(Circuit c) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement transitionSystemFromCircuit
+        TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> ts = new TransitionSystemImpl<>();
+
+        // states
+        Set<Pair<Map<String, Boolean>,Map<String, Boolean>>> states = new HashSet<>();
+        Set<Pair<Map<String, Boolean>,Map<String, Boolean>>> inits = new HashSet<>();
+
+        Set<Set<String>> powerSetRegs = Util.powerSet(c.getRegisterNames());
+        Set<Set<String>> powerSetInputs = Util.powerSet(c.getInputPortNames());
+
+        Set<Map<String, Boolean>> regsMaps = new HashSet<>();
+        for (Set<String> regSet : powerSetRegs){
+            Map<String, Boolean> regsMap = new HashMap<>();
+            for (String reg : c.getRegisterNames()){
+                if (regSet.contains(reg)){
+                    regsMap.put(reg, true);
+                }
+                else{
+                    regsMap.put(reg, false);
+                }
+            }
+            regsMaps.add(regsMap);
+        }
+
+        Set<Map<String, Boolean>> inputsMaps = new HashSet<>();
+        for (Set<String> inputSet : powerSetInputs){
+            Map<String, Boolean> inputsMap = new HashMap<>();
+            for (String input : c.getInputPortNames()){
+                if (inputSet.contains(input)){
+                    inputsMap.put(input, true);
+                }
+                else{
+                    inputsMap.put(input, false);
+                }
+            }
+            inputsMaps.add(inputsMap);
+        }
+
+        for (Map<String, Boolean> regsMap : regsMaps){
+            for (Map<String, Boolean> inputsMap : inputsMaps){
+                Pair<Map<String, Boolean>, Map<String, Boolean>> p = new Pair<>(inputsMap, regsMap);
+//                ts.addState(p);
+                states.add(p);
+                // inits
+                if(!p.getSecond().values().contains(true)){
+//                    ts.setInitial(p, true);
+                    inits.add(p);
+                }
+            }
+        }
+        ts.addAllStates(states);
+        for (Pair<Map<String, Boolean>, Map<String, Boolean>> init : inits){
+            ts.setInitial(init, true);
+        }
+
+        // act
+        ts.addAllActions(inputsMaps);
+
+        //trans
+        Set<Transition<Pair<Map<String, Boolean>,Map<String, Boolean>>, Map<String, Boolean>>> trans = new HashSet<>();
+        for (Pair<Map<String, Boolean>, Map<String, Boolean>> state : ts.getStates()){
+            for (Map<String, Boolean> act : ts.getActions()){
+                Pair<Map<String, Boolean>, Map<String, Boolean>> to =  new Pair<>(act, c.updateRegisters(state.first, state.second));
+//                ts.addTransition();
+                trans.add(new Transition<>(state, act, to));
+            }
+
+        }
+        for(Transition t : trans){
+            ts.addTransition(t);
+        }
+
+
+        Set<Pair<Map<String, Boolean>,Map<String, Boolean>>> newStates = reach(ts);
+        for (Pair<Map<String, Boolean>,Map<String, Boolean>> s : states) {
+            if (!newStates.contains(s)) {
+                Set<Transition<Pair<Map<String, Boolean>,Map<String, Boolean>>, Map<String, Boolean>>> transToRemove = new HashSet<>();
+                for (Transition t : trans){
+                    if (t.getFrom().equals(s) || t.getTo().equals(s)) {
+//                        ts.removeTransition(t);
+                        transToRemove.add(t);
+                    }
+                }
+                for(Transition tToRemove : transToRemove){
+                    ts.removeTransition(tToRemove);
+                }
+                ts.removeState(s);
+            }
+        }
+
+        // aps
+        for (String reg : c.getRegisterNames()) {
+            ts.addAtomicProposition(reg);
+        }
+        for (String input : c.getInputPortNames()) {
+            ts.addAtomicProposition(input);
+        }
+        for (String output : c.getOutputPortNames()) {
+            ts.addAtomicProposition(output);
+        }
+
+        // labels
+        for (Pair<Map<String, Boolean>, Map<String, Boolean>> state : ts.getStates()){
+            for (String input : state.first.keySet()){
+                if (state.first.get(input)){
+                    ts.addToLabel(state, input);
+                }
+            }
+            for (String reg : state.second.keySet()){
+                if (state.second.get(reg)){
+                    ts.addToLabel(state, reg);
+                }
+            }
+            Map<String, Boolean> outputs = c.computeOutputs(state.first, state.second);
+            for (String output : outputs.keySet()){
+                if (outputs.get(output)){
+                    ts.addToLabel(state, output);
+                }
+            }
+        }
+
+
+
+
+
+
+//        Map<String, Boolean> regs = new HashMap<>();
+//        for (String reg : c.getRegisterNames()){
+//            regs.put(reg, false);
+//            regs.put(reg, true);
+//
+//            for (String input : c.getInputPortNames()){
+//
+//                Map<String, Boolean> inputF = Collections.singletonMap(input, false);
+//                Map<String, Boolean> inputT = Collections.singletonMap(input, true);
+//
+//                Pair<Map<String, Boolean>, Map<String, Boolean>> ff = new Pair<>(inputF, regF);
+//                Pair<Map<String, Boolean>, Map<String, Boolean>> tf = new Pair<>(inputT, regF);
+//                Pair<Map<String, Boolean>, Map<String, Boolean>> ft = new Pair<>(inputF, regT);
+//                Pair<Map<String, Boolean>, Map<String, Boolean>> tt = new Pair<>(inputT, regT);
+//
+//                // states
+//                ts.addState(ff);
+//                ts.addState(tf);
+//                ts.addState(ft);
+//                ts.addState(tt);
+//
+//                // inits
+//                ts.setInitial(ff, true);
+//                ts.setInitial(tf, true);
+//
+//                // act
+//                ts.addAction(inputF);
+//                ts.addAction(inputT);
+//
+//                // ->
+//                ts.addTransition(new Transition<>(ff, inputF, new Pair<>(inputF, c.updateRegisters(inputF, regF))));
+//                ts.addTransition(new Transition<>(ff, inputT, new Pair<>(inputT, c.updateRegisters(inputF, regF))));
+//
+//                ts.addTransition(new Transition<>(tf, inputF, new Pair<>(inputF, c.updateRegisters(inputT, regF))));
+//                ts.addTransition(new Transition<>(tf, inputT, new Pair<>(inputT, c.updateRegisters(inputT, regF))));
+//
+//                ts.addTransition(new Transition<>(ft, inputF, new Pair<>(inputF, c.updateRegisters(inputF, regT))));
+//                ts.addTransition(new Transition<>(ft, inputT, new Pair<>(inputT, c.updateRegisters(inputF, regT))));
+//
+//                ts.addTransition(new Transition<>(tt, inputF, new Pair<>(inputF, c.updateRegisters(inputT, regT))));
+//                ts.addTransition(new Transition<>(tt, inputT, new Pair<>(inputT, c.updateRegisters(inputT, regT))));
+//            }
+//        }
+//
+
+
+//        // Labels
+//        for (Pair<Map<String, Boolean>, Map<String, Boolean>> state : ts.getStates()){
+//            Map.Entry<String, Boolean> entry = state.second.entrySet().iterator().next();
+//            if ( entry.getValue()){ // reg == T
+//                ts.addToLabel(state, entry.getKey());
+//            }
+//            entry = state.first.entrySet().iterator().next();
+//            if ( entry.getValue()){ // input == T
+//                ts.addToLabel(state, entry.getKey());
+//            }
+//            Map<String, Boolean> yi = c.computeOutputs(state.first, state.second);
+//            entry = yi.entrySet().iterator().next();
+//            if (entry.getValue()){
+//                ts.addToLabel(state, entry.getKey());
+//            }
+//        }
+
+
+
+        return ts;
     }
 
     @Override
