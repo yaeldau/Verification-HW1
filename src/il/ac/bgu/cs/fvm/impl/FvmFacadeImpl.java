@@ -628,82 +628,94 @@ public class FvmFacadeImpl implements FvmFacade {
             }
         }
 
-
-
-
-
-
-//        Map<String, Boolean> regs = new HashMap<>();
-//        for (String reg : c.getRegisterNames()){
-//            regs.put(reg, false);
-//            regs.put(reg, true);
-//
-//            for (String input : c.getInputPortNames()){
-//
-//                Map<String, Boolean> inputF = Collections.singletonMap(input, false);
-//                Map<String, Boolean> inputT = Collections.singletonMap(input, true);
-//
-//                Pair<Map<String, Boolean>, Map<String, Boolean>> ff = new Pair<>(inputF, regF);
-//                Pair<Map<String, Boolean>, Map<String, Boolean>> tf = new Pair<>(inputT, regF);
-//                Pair<Map<String, Boolean>, Map<String, Boolean>> ft = new Pair<>(inputF, regT);
-//                Pair<Map<String, Boolean>, Map<String, Boolean>> tt = new Pair<>(inputT, regT);
-//
-//                // states
-//                ts.addState(ff);
-//                ts.addState(tf);
-//                ts.addState(ft);
-//                ts.addState(tt);
-//
-//                // inits
-//                ts.setInitial(ff, true);
-//                ts.setInitial(tf, true);
-//
-//                // act
-//                ts.addAction(inputF);
-//                ts.addAction(inputT);
-//
-//                // ->
-//                ts.addTransition(new Transition<>(ff, inputF, new Pair<>(inputF, c.updateRegisters(inputF, regF))));
-//                ts.addTransition(new Transition<>(ff, inputT, new Pair<>(inputT, c.updateRegisters(inputF, regF))));
-//
-//                ts.addTransition(new Transition<>(tf, inputF, new Pair<>(inputF, c.updateRegisters(inputT, regF))));
-//                ts.addTransition(new Transition<>(tf, inputT, new Pair<>(inputT, c.updateRegisters(inputT, regF))));
-//
-//                ts.addTransition(new Transition<>(ft, inputF, new Pair<>(inputF, c.updateRegisters(inputF, regT))));
-//                ts.addTransition(new Transition<>(ft, inputT, new Pair<>(inputT, c.updateRegisters(inputF, regT))));
-//
-//                ts.addTransition(new Transition<>(tt, inputF, new Pair<>(inputF, c.updateRegisters(inputT, regT))));
-//                ts.addTransition(new Transition<>(tt, inputT, new Pair<>(inputT, c.updateRegisters(inputT, regT))));
-//            }
-//        }
-//
-
-
-//        // Labels
-//        for (Pair<Map<String, Boolean>, Map<String, Boolean>> state : ts.getStates()){
-//            Map.Entry<String, Boolean> entry = state.second.entrySet().iterator().next();
-//            if ( entry.getValue()){ // reg == T
-//                ts.addToLabel(state, entry.getKey());
-//            }
-//            entry = state.first.entrySet().iterator().next();
-//            if ( entry.getValue()){ // input == T
-//                ts.addToLabel(state, entry.getKey());
-//            }
-//            Map<String, Boolean> yi = c.computeOutputs(state.first, state.second);
-//            entry = yi.entrySet().iterator().next();
-//            if (entry.getValue()){
-//                ts.addToLabel(state, entry.getKey());
-//            }
-//        }
-
-
-
         return ts;
     }
 
     @Override
     public <L, A> TransitionSystem<Pair<L, Map<String, Object>>, A, String> transitionSystemFromProgramGraph(ProgramGraph<L, A> pg, Set<ActionDef> actionDefs, Set<ConditionDef> conditionDefs) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement transitionSystemFromProgramGraph
+
+        TransitionSystem<Pair<L, Map<String, Object>>, A, String> ts = new TransitionSystemImpl<>();
+
+        // actions
+        for (PGTransition tran : pg.getTransitions()){
+            ts.addAction((A)tran.getAction());
+        }
+
+        // locations
+        Set<Pair<L, Map<String, Object>>> states = new HashSet<>();
+
+        Set<Map<String, Object>> evals = new HashSet<>();
+        for (List<String> list : pg.getInitalizations()){
+            Map<String, Object> map = new HashMap<>();
+            for (String s : list){
+                String[] splited = s.split(":=");
+                map.put(splited[0].trim(), Integer.parseInt(splited[1].trim()));
+            }
+            evals.add(map);
+        }
+
+        for (L init : pg.getInitialLocations()){
+            for ( Map<String, Object> eval : evals){
+                Pair<L, Map<String, Object>> initState = new Pair<>(init, eval);
+                states.add(initState);
+                ts.addState(initState);
+                ts.setInitial(initState, true);
+            }
+        }
+
+
+        Set<PGTransition<L, A>> trans = new HashSet<>(pg.getTransitions());
+        while (!trans.isEmpty()){
+            PGTransition tranToRemove = null;
+            for (PGTransition<L,A> tran : trans){
+                for (Pair<L, Map<String, Object>> state : states){
+                    if (state.first.equals(tran.getFrom())) {
+                        Map<String, Object> effect = ActionDef.effect(actionDefs, state.second, tran.getAction());
+                        Pair<L, Map<String, Object>> to = new Pair<>(tran.getTo(), effect);
+                        ts.addState(to);
+
+                        // trans
+                        if (ConditionDef.evaluate(conditionDefs,state.second, tran.getCondition())){
+                            ts.addTransition(new Transition<>(state,tran.getAction(), to));
+                        }
+
+                    }
+                }
+                states = new HashSet<>(ts.getStates());
+                tranToRemove = tran;
+                break;
+            }
+            if (tranToRemove != null){
+                trans.remove(tranToRemove);
+            }
+        }
+        ts.addAllStates(states);
+
+        // aps
+        ts.addAllAtomicPropositions((Set<String>) pg.getLocations());
+        for (PGTransition tran : pg.getTransitions()){
+            ts.addAtomicPropositions(tran.getCondition());
+        }
+
+        // labeling
+        for (Pair<L, Map<String, Object>> state : ts.getStates()) {
+            ts.addToLabel(state, (String) state.first);
+
+            for (PGTransition tran : pg.getTransitions()){
+                if (ConditionDef.evaluate(conditionDefs,state.second,tran.getCondition())){
+                    ts.addToLabel(state, tran.getCondition());
+                }
+            }
+        }
+        states = new HashSet<>(ts.getStates());
+        Set<Pair<L, Map<String, Object>>> reach = reach(ts);
+        for (Pair<L, Map<String, Object>> state : states){
+            if (!reach.contains(state)){
+                ts.removeState(state);
+            }
+        }
+
+        return ts;
     }
 
     @Override
