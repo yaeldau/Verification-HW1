@@ -649,7 +649,7 @@ public class FvmFacadeImpl implements FvmFacade {
             Map<String, Object> map = new HashMap<>();
             for (String s : list){
                 String[] splited = s.split(":=");
-                map.put(splited[0].trim(), Integer.parseInt(splited[1].trim()));
+                map.put(splited[0].trim(), splited.length == 1 ? 0 : Integer.parseInt(splited[1].trim()));
             }
             evals.add(map);
         }
@@ -660,6 +660,10 @@ public class FvmFacadeImpl implements FvmFacade {
                 states.add(initState);
                 ts.addState(initState);
                 ts.setInitial(initState, true);
+                // aps
+                for (String key : eval.keySet()){
+                    ts.addAtomicProposition(key + " = " + eval.get(key));
+                }
             }
         }
 
@@ -679,11 +683,17 @@ public class FvmFacadeImpl implements FvmFacade {
                             ts.addTransition(new Transition<>(state,tran.getAction(), to));
                         }
 
+                        // aps
+                        for (String key : effect.keySet()){
+                            ts.addAtomicProposition(key + " = " + effect.get(key));
+                        }
+
+                        tranToRemove = tran;
+                        break;
+
                     }
                 }
                 states = new HashSet<>(ts.getStates());
-                tranToRemove = tran;
-                break;
             }
             if (tranToRemove != null){
                 trans.remove(tranToRemove);
@@ -693,9 +703,7 @@ public class FvmFacadeImpl implements FvmFacade {
 
         // aps
         ts.addAllAtomicPropositions((Set<String>) pg.getLocations());
-        for (PGTransition tran : pg.getTransitions()){
-            ts.addAtomicPropositions(tran.getCondition());
-        }
+
 
         // labeling
         for (Pair<L, Map<String, Object>> state : ts.getStates()) {
@@ -703,7 +711,9 @@ public class FvmFacadeImpl implements FvmFacade {
 
             for (PGTransition tran : pg.getTransitions()){
                 if (ConditionDef.evaluate(conditionDefs,state.second,tran.getCondition())){
-                    ts.addToLabel(state, tran.getCondition());
+                    for (String key : state.second.keySet()) {
+                        ts.addToLabel(state, key + " = " + state.second.get(key));
+                    }
                 }
             }
         }
