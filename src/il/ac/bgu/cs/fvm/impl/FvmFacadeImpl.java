@@ -285,7 +285,7 @@ public class FvmFacadeImpl implements FvmFacade {
                 if (tran2.getFrom().equals(sFrom.second)){
                     for(Pair<S1, S2> sTo : states) {
                         if (tran2.getTo().equals(sTo.second)) {
-                                if (sFrom.first.equals(sTo.first)) {
+                            if (sFrom.first.equals(sTo.first)) {
                                 ts.addTransition(new Transition(sFrom, tran2.getAction(), sTo));
                             }
                         }
@@ -642,22 +642,26 @@ public class FvmFacadeImpl implements FvmFacade {
         }
 
         // locations
-        Set<Pair<L, Map<String, Object>>> states = new HashSet<>();
+        //Set<Pair<L, Map<String, Object>>> states = new HashSet<>();
 
         Set<Map<String, Object>> evals = new HashSet<>();
         for (List<String> list : pg.getInitalizations()){
             Map<String, Object> map = new HashMap<>();
-            for (String s : list){
-                String[] splited = s.split(":=");
-                map.put(splited[0].trim(), splited.length == 1 ? 0 : Integer.parseInt(splited[1].trim()));
+            for(String action : list) {
+                map = ActionDef.effect(actionDefs, map, action);
             }
             evals.add(map);
+
+        }
+        if(evals.isEmpty()){
+            evals.add(new HashMap<>());
         }
 
         for (L init : pg.getInitialLocations()){
             for ( Map<String, Object> eval : evals){
+
                 Pair<L, Map<String, Object>> initState = new Pair<>(init, eval);
-                states.add(initState);
+                //states.add(initState);
                 ts.addState(initState);
                 ts.setInitial(initState, true);
                 // aps
@@ -668,38 +672,32 @@ public class FvmFacadeImpl implements FvmFacade {
         }
 
 
-        Set<PGTransition<L, A>> trans = new HashSet<>(pg.getTransitions());
-        while (!trans.isEmpty()){
-            PGTransition tranToRemove = null;
-            for (PGTransition<L,A> tran : trans){
-                for (Pair<L, Map<String, Object>> state : states){
-                    if (state.first.equals(tran.getFrom())) {
-                        Map<String, Object> effect = ActionDef.effect(actionDefs, state.second, tran.getAction());
-                        Pair<L, Map<String, Object>> to = new Pair<>(tran.getTo(), effect);
+        Queue<Pair<L, Map<String, Object>>> states = new LinkedList<>(ts.getStates());
+        while (!states.isEmpty()){
+
+            Pair<L, Map<String, Object>> state = states.poll();
+
+            for (PGTransition<L,A> tran : pg.getTransitions()){
+                if (state.first.equals(tran.getFrom()) && ConditionDef.evaluate(conditionDefs, state.second, tran.getCondition())) {
+                    Map<String, Object> effect = ActionDef.effect(actionDefs, state.second, tran.getAction());
+                    Pair<L, Map<String, Object>> to = new Pair<>(tran.getTo(), effect);
+                    if(!ts.getStates().contains(to)) {
                         ts.addState(to);
+                        states.add(to);
+                    }
 
-                        // trans
-                        if (ConditionDef.evaluate(conditionDefs,state.second, tran.getCondition())){
-                            ts.addTransition(new Transition<>(state,tran.getAction(), to));
-                        }
+                    // trans
+                    if (ConditionDef.evaluate(conditionDefs, state.second, tran.getCondition())) {
+                        ts.addTransition(new Transition<>(state, tran.getAction(), to));
+                    }
 
-                        // aps
-                        for (String key : effect.keySet()){
-                            ts.addAtomicProposition(key + " = " + effect.get(key));
-                        }
-
-                        tranToRemove = tran;
-                        break;
-
+                    // aps
+                    for (String key : effect.keySet()) {
+                        ts.addAtomicProposition(key + " = " + effect.get(key));
                     }
                 }
-                states = new HashSet<>(ts.getStates());
-            }
-            if (tranToRemove != null){
-                trans.remove(tranToRemove);
             }
         }
-        ts.addAllStates(states);
 
         // aps
         ts.addAllAtomicPropositions((Set<String>) pg.getLocations());
@@ -707,19 +705,17 @@ public class FvmFacadeImpl implements FvmFacade {
 
         // labeling
         for (Pair<L, Map<String, Object>> state : ts.getStates()) {
-            ts.addToLabel(state, (String) state.first);
+            ts.addToLabel(state,  state.first.toString());
 
             for (PGTransition tran : pg.getTransitions()){
-                if (ConditionDef.evaluate(conditionDefs,state.second,tran.getCondition())){
-                    for (String key : state.second.keySet()) {
-                        ts.addToLabel(state, key + " = " + state.second.get(key));
-                    }
+                for (String key : state.second.keySet()) {
+                    ts.addToLabel(state, key + " = " + state.second.get(key));
                 }
             }
         }
-        states = new HashSet<>(ts.getStates());
+        Set<Pair<L, Map<String, Object>>> states1 = new HashSet<>(ts.getStates());
         Set<Pair<L, Map<String, Object>>> reach = reach(ts);
-        for (Pair<L, Map<String, Object>> state : states){
+        for (Pair<L, Map<String, Object>> state : states1){
             if (!reach.contains(state)){
                 ts.removeState(state);
             }
@@ -767,5 +763,5 @@ public class FvmFacadeImpl implements FvmFacade {
     public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
         throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement GNBA2NBA
     }
-   
+
 }
