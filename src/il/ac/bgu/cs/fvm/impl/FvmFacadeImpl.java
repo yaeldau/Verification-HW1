@@ -548,11 +548,9 @@ public class FvmFacadeImpl implements FvmFacade {
         for (Map<String, Boolean> regsMap : regsMaps){
             for (Map<String, Boolean> inputsMap : inputsMaps){
                 Pair<Map<String, Boolean>, Map<String, Boolean>> p = new Pair<>(inputsMap, regsMap);
-//                ts.addState(p);
                 states.add(p);
                 // inits
                 if(!p.getSecond().values().contains(true)){
-//                    ts.setInitial(p, true);
                     inits.add(p);
                 }
             }
@@ -570,7 +568,6 @@ public class FvmFacadeImpl implements FvmFacade {
         for (Pair<Map<String, Boolean>, Map<String, Boolean>> state : ts.getStates()){
             for (Map<String, Boolean> act : ts.getActions()){
                 Pair<Map<String, Boolean>, Map<String, Boolean>> to =  new Pair<>(act, c.updateRegisters(state.first, state.second));
-//                ts.addTransition();
                 trans.add(new Transition<>(state, act, to));
             }
 
@@ -586,7 +583,6 @@ public class FvmFacadeImpl implements FvmFacade {
                 Set<Transition<Pair<Map<String, Boolean>,Map<String, Boolean>>, Map<String, Boolean>>> transToRemove = new HashSet<>();
                 for (Transition t : trans){
                     if (t.getFrom().equals(s) || t.getTo().equals(s)) {
-//                        ts.removeTransition(t);
                         transToRemove.add(t);
                     }
                 }
@@ -699,8 +695,19 @@ public class FvmFacadeImpl implements FvmFacade {
             }
         }
 
+        Set<Pair<L, Map<String, Object>>> states1 = new HashSet<>(ts.getStates());
+        Set<Pair<L, Map<String, Object>>> reach = reach(ts);
+        for (Pair<L, Map<String, Object>> state : states1){
+            if (!reach.contains(state)){
+                ts.removeState(state);
+            }
+        }
+
         // aps
-        ts.addAllAtomicPropositions((Set<String>) pg.getLocations());
+        for (Pair<L, Map<String, Object>> state : ts.getStates()){
+            ts.addAtomicProposition(state.first.toString());
+        }
+//        ts.addAllAtomicPropositions((Set<String>) pg.getLocations());
 
 
         // labeling
@@ -713,13 +720,7 @@ public class FvmFacadeImpl implements FvmFacade {
                 }
             }
         }
-        Set<Pair<L, Map<String, Object>>> states1 = new HashSet<>(ts.getStates());
-        Set<Pair<L, Map<String, Object>>> reach = reach(ts);
-        for (Pair<L, Map<String, Object>> state : states1){
-            if (!reach.contains(state)){
-                ts.removeState(state);
-            }
-        }
+
 
         return ts;
     }
