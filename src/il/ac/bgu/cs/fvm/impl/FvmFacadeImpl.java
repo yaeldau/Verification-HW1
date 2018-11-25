@@ -5,15 +5,13 @@ import il.ac.bgu.cs.fvm.FvmFacade;
 import il.ac.bgu.cs.fvm.automata.Automaton;
 import il.ac.bgu.cs.fvm.automata.MultiColorAutomaton;
 import il.ac.bgu.cs.fvm.channelsystem.ChannelSystem;
+import il.ac.bgu.cs.fvm.channelsystem.ParserBasedInterleavingActDef;
 import il.ac.bgu.cs.fvm.circuits.Circuit;
 import il.ac.bgu.cs.fvm.exceptions.ActionNotFoundException;
 import il.ac.bgu.cs.fvm.exceptions.FVMException;
 import il.ac.bgu.cs.fvm.exceptions.StateNotFoundException;
 import il.ac.bgu.cs.fvm.ltl.LTL;
-import il.ac.bgu.cs.fvm.programgraph.ActionDef;
-import il.ac.bgu.cs.fvm.programgraph.ConditionDef;
-import il.ac.bgu.cs.fvm.programgraph.PGTransition;
-import il.ac.bgu.cs.fvm.programgraph.ProgramGraph;
+import il.ac.bgu.cs.fvm.programgraph.*;
 import il.ac.bgu.cs.fvm.transitionsystem.AlternatingSequence;
 import il.ac.bgu.cs.fvm.transitionsystem.Transition;
 import il.ac.bgu.cs.fvm.transitionsystem.TransitionSystem;
@@ -677,7 +675,7 @@ public class FvmFacadeImpl implements FvmFacade {
                 if (state.first.equals(tran.getFrom()) && ConditionDef.evaluate(conditionDefs, state.second, tran.getCondition())) {
                     Map<String, Object> effect = ActionDef.effect(actionDefs, state.second, tran.getAction());
                     Pair<L, Map<String, Object>> to = new Pair<>(tran.getTo(), effect);
-                    if(!ts.getStates().contains(to)) {
+                    if (!ts.getStates().contains(to)) {
                         ts.addState(to);
                         states.add(to);
                     }
@@ -688,9 +686,11 @@ public class FvmFacadeImpl implements FvmFacade {
                     }
 
                     // aps
-                    for (String key : effect.keySet()) {
-                        ts.addAtomicProposition(key + " = " + effect.get(key));
-                    }
+//                    for (String key : effect.keySet()) {
+//                    for (String key : state.second.keySet()) {
+//                        ts.addAtomicProposition(key + " = " + state.second.get(key));
+//                    }
+
                 }
             }
         }
@@ -704,18 +704,19 @@ public class FvmFacadeImpl implements FvmFacade {
         }
 
         // aps
-        for (Pair<L, Map<String, Object>> state : ts.getStates()){
-            ts.addAtomicProposition(state.first.toString());
-        }
-//        ts.addAllAtomicPropositions((Set<String>) pg.getLocations());
+//        for (Pair<L, Map<String, Object>> state : ts.getStates()){
+//            ts.addAtomicProposition(state.first.toString());
+//        }
 
 
         // labeling
         for (Pair<L, Map<String, Object>> state : ts.getStates()) {
+            ts.addAtomicProposition(state.first.toString());
             ts.addToLabel(state,  state.first.toString());
 
             for (PGTransition tran : pg.getTransitions()){
                 for (String key : state.second.keySet()) {
+                    ts.addAtomicProposition(key + " = " + state.second.get(key));
                     ts.addToLabel(state, key + " = " + state.second.get(key));
                 }
             }
@@ -727,7 +728,172 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <L, A> TransitionSystem<Pair<List<L>, Map<String, Object>>, A, String> transitionSystemFromChannelSystem(ChannelSystem<L, A> cs) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement transitionSystemFromChannelSystem
+
+        ProgramGraph<List<L>,A> pg = new ProgramGraphImpl<>();
+
+        // first pg
+        ProgramGraph<L, A> pg1 = cs.getProgramGraphs().get(0);
+        for (L locij : pg1.getLocations()){
+            // locations
+            List<L> newLoc = new ArrayList<>();
+            newLoc.add(locij);
+            pg.addLocation(newLoc);
+
+            // init
+            if (pg1.getInitialLocations().contains(locij)){
+                pg.setInitial(newLoc, true);
+            }
+        }
+
+        // trans
+        for (PGTransition<L,A> tran : pg1.getTransitions()){
+            PGTransition<List<L>, A> newTran = new PGTransition<>(
+                    Arrays.asList(tran.getFrom()), tran.getCondition() ,tran.getAction(), Arrays.asList(tran.getTo()));
+            pg.addTransition(newTran);
+        }
+
+        // initializations
+        for (List<String> inits : pg1.getInitalizations()) {
+            pg.addInitalization(inits);
+        }
+
+        // rest pg-s
+        for (int i=1; i<cs.getProgramGraphs().size(); i++) {
+            ProgramGraph<L, A> pgi = cs.getProgramGraphs().get(i);
+            pg = addProgramGraphs(pg, pgi);
+        }
+
+
+
+        Set<ActionDef> actionDefs = new HashSet<>();
+        actionDefs.add( new ParserBasedInterleavingActDef());
+        actionDefs.add( new ParserBasedActDef());
+        Set<ConditionDef> conditionDefs = new HashSet<>();
+        conditionDefs.add(new ParserBasedCondDef());
+
+        TransitionSystem<Pair<List<L>, Map<String, Object>>, A, String> ts =
+                transitionSystemFromProgramGraph(pg, actionDefs, conditionDefs);
+        return ts;
+    }
+
+    private <L,A> ProgramGraph<List<L>, A> addProgramGraphs(ProgramGraph<List<L>, A> pgAll, ProgramGraph<L, A> pgi){
+        ProgramGraph<List<L>, A> pg = createProgramGraph();
+        // locations
+        Set<List<L>> locations = new HashSet<>( pgAll.getLocations());
+        for (List<L> locs : locations) {
+            for (L locij : pgi.getLocations()) {
+                List<L> newLoc = new ArrayList<>(locs);
+                newLoc.add(locij);
+                pg.addLocation(newLoc);
+
+                // init
+                if (pgi.getInitialLocations().contains(locij) && pgAll.getInitialLocations().contains(locs)) {
+                    pg.setInitial(newLoc, true);
+                }
+            }
+        }
+
+        // trans
+        ParserBasedInterleavingActDef parser = new ParserBasedInterleavingActDef();
+        Set<PGTransition<List<L>, A>> transitions = new HashSet<>(pgAll.getTransitions());
+        for (PGTransition<List<L>, A> pgTran : transitions) {
+            if (!parser.isOneSidedAction(pgTran.getAction().toString())) {
+                for (L loc : pgi.getLocations()) {
+                    List<L> from = new ArrayList<>(pgTran.getFrom());
+                    from.add(loc);
+                    List<L> to = new ArrayList<>(pgTran.getTo());
+                    to.add(loc);
+                    PGTransition<List<L>, A> newTran = new PGTransition<>(
+                            from, pgTran.getCondition(), pgTran.getAction(), to);
+                    pg.addTransition(newTran);
+                }
+            }
+        }
+
+        for (PGTransition<L, A> pgiTran : pgi.getTransitions()) {
+            if (!parser.isOneSidedAction(pgiTran.getAction().toString())) {
+                for (List<L> loc : pgAll.getLocations()) {
+                    List<L> from = new ArrayList<>(loc);
+                    from.add(pgiTran.getFrom());
+                    List<L> to = new ArrayList<>(loc);
+                    to.add(pgiTran.getTo());
+                    PGTransition<List<L>, A> newTran = new PGTransition<>(
+                            from, pgiTran.getCondition(), pgiTran.getAction(), to);
+                    pg.addTransition(newTran);
+                }
+            }
+        }
+
+        transitions = new HashSet<>(pgAll.getTransitions());
+        for (PGTransition<List<L>, A> pgTran : transitions) {
+            for (PGTransition<L, A> pgiTran : pgi.getTransitions()) {
+                A act = getHandShakeAction(pgTran.getAction(), pgiTran.getAction(), parser);
+                if( act != null) {
+                    List<L> from = new ArrayList<>(pgTran.getFrom());
+                    from.add(pgiTran.getFrom());
+                    List<L> to = new ArrayList<>(pgTran.getTo());
+                    to.add(pgiTran.getTo());
+                    PGTransition<List<L>, A> newTran = new PGTransition<>(
+                            from, mergeConditions(pgTran.getCondition(), pgiTran.getCondition()), act, to);
+                    pg.addTransition(newTran);
+                }
+            }
+        }
+
+        // initializations
+        Set<List<String>> inits =  new HashSet<>(pgAll.getInitalizations());
+        for (List<String> pginits : inits) {
+            for (List<String> pgiinits : pgi.getInitalizations()) {
+                List<String> init = new ArrayList<>(pginits);
+                init.addAll(pgiinits);
+                pg.addInitalization(init);
+            }
+        }
+        if (pgAll.getInitalizations().isEmpty()){
+            for (List<String> init : pgi.getInitalizations()){
+                pg.addInitalization(init);
+            }
+        }
+
+        if (pgi.getInitalizations().isEmpty()){
+            for (List<String> init : pgAll.getInitalizations()){
+                pg.addInitalization(init);
+            }
+        }
+        return pg;
+    }
+
+    private <A> A getHandShakeAction(A pgaction, A pgiaction, ParserBasedInterleavingActDef parser) {
+        if (!(pgaction instanceof String) || !(pgiaction instanceof String))
+            return null;
+        if(!parser.isOneSidedAction(pgaction.toString()) || !parser.isOneSidedAction(pgiaction.toString()))
+            return null;
+
+        if (((String)pgaction).contains("?") && ((String)pgiaction).contains("!")){
+            String pgchannel = ((String) pgaction).substring(0, ((String) pgaction).indexOf("?"));
+            String pgichannel = ((String) pgiaction).substring(0, ((String) pgiaction).indexOf("!"));
+            if(  pgchannel.equals(pgichannel))
+                return (A)String.format("%s|%s", pgaction, pgiaction);
+        }
+
+        if (((String)pgaction).contains("!") && ((String)pgiaction).contains("?")){
+            String pgchannel = ((String) pgaction).substring(0, ((String) pgaction).indexOf("!"));
+            String pgichannel = ((String) pgiaction).substring(0, ((String) pgiaction).indexOf("?"));
+            if ( pgchannel.equals(pgichannel)) {
+                return (A)String.format("%s|%s", pgaction.toString(), pgiaction.toString());
+            }
+        }
+
+        return null;
+    }
+
+
+    private String mergeConditions(String PGCondition, String PGiCondition) {
+        if (PGCondition.length() == 0)
+            return PGiCondition;
+        if (PGiCondition.length() == 0)
+            return PGCondition;
+        return "(" + PGCondition + ") && (" + PGiCondition + ")";
     }
 
     @Override
