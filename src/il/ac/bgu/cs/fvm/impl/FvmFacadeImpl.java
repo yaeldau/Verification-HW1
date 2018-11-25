@@ -896,10 +896,6 @@ public class FvmFacadeImpl implements FvmFacade {
         return "(" + PGCondition + ") && (" + PGiCondition + ")";
     }
 
-    @Override
-    public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement product
-    }
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(String filename) throws Exception {
@@ -914,6 +910,11 @@ public class FvmFacadeImpl implements FvmFacade {
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(InputStream inputStream) throws Exception {
         throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement programGraphFromNanoPromela
+    }
+
+    @Override
+    public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut) {
+        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement product
     }
 
     @Override
