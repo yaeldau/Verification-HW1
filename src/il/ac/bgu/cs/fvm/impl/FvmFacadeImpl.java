@@ -674,22 +674,19 @@ public class FvmFacadeImpl implements FvmFacade {
             for (PGTransition<L,A> tran : pg.getTransitions()){
                 if (state.first.equals(tran.getFrom()) && ConditionDef.evaluate(conditionDefs, state.second, tran.getCondition())) {
                     Map<String, Object> effect = ActionDef.effect(actionDefs, state.second, tran.getAction());
-                    Pair<L, Map<String, Object>> to = new Pair<>(tran.getTo(), effect);
-                    if (!ts.getStates().contains(to)) {
-                        ts.addState(to);
-                        states.add(to);
+                    if (effect != null) {
+                        Pair<L, Map<String, Object>> to = new Pair<>(tran.getTo(), effect);
+                        if (!ts.getStates().contains(to)) {
+                            ts.addState(to);
+                            states.add(to);
+                        }
+
+                        // trans
+                        if (ConditionDef.evaluate(conditionDefs, state.second, tran.getCondition())) {
+                            ts.addTransition(new Transition<>(state, tran.getAction(), to));
+                        }
                     }
 
-                    // trans
-                    if (ConditionDef.evaluate(conditionDefs, state.second, tran.getCondition())) {
-                        ts.addTransition(new Transition<>(state, tran.getAction(), to));
-                    }
-
-                    // aps
-//                    for (String key : effect.keySet()) {
-//                    for (String key : state.second.keySet()) {
-//                        ts.addAtomicProposition(key + " = " + state.second.get(key));
-//                    }
 
                 }
             }
@@ -703,16 +700,19 @@ public class FvmFacadeImpl implements FvmFacade {
             }
         }
 
-        // aps
-//        for (Pair<L, Map<String, Object>> state : ts.getStates()){
-//            ts.addAtomicProposition(state.first.toString());
-//        }
-
 
         // labeling
         for (Pair<L, Map<String, Object>> state : ts.getStates()) {
-            ts.addAtomicProposition(state.first.toString());
-            ts.addToLabel(state,  state.first.toString());
+            if (state.first instanceof ArrayList<?>) {
+                for (L l : (ArrayList<L>) state.first) {
+                    ts.addAtomicProposition(l.toString());
+                    ts.addToLabel(state, l.toString());
+                }
+            } else {
+                ts.addAtomicProposition(state.first.toString());
+                ts.addToLabel(state, state.first.toString());
+            }
+
 
             for (PGTransition tran : pg.getTransitions()){
                 for (String key : state.second.keySet()) {
@@ -765,7 +765,7 @@ public class FvmFacadeImpl implements FvmFacade {
 
 
 
-        Set<ActionDef> actionDefs = new HashSet<>();
+        Set<ActionDef> actionDefs = new LinkedHashSet<>();
         actionDefs.add( new ParserBasedInterleavingActDef());
         actionDefs.add( new ParserBasedActDef());
         Set<ConditionDef> conditionDefs = new HashSet<>();
