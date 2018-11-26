@@ -11,6 +11,9 @@ import il.ac.bgu.cs.fvm.exceptions.ActionNotFoundException;
 import il.ac.bgu.cs.fvm.exceptions.FVMException;
 import il.ac.bgu.cs.fvm.exceptions.StateNotFoundException;
 import il.ac.bgu.cs.fvm.ltl.LTL;
+import il.ac.bgu.cs.fvm.nanopromela.NanoPromelaFileReader;
+import il.ac.bgu.cs.fvm.nanopromela.NanoPromelaParser.OptionContext;
+import il.ac.bgu.cs.fvm.nanopromela.NanoPromelaParser.StmtContext;
 import il.ac.bgu.cs.fvm.programgraph.*;
 import il.ac.bgu.cs.fvm.transitionsystem.AlternatingSequence;
 import il.ac.bgu.cs.fvm.transitionsystem.Transition;
@@ -19,8 +22,15 @@ import il.ac.bgu.cs.fvm.util.CollectionHelper;
 import il.ac.bgu.cs.fvm.util.Pair;
 import il.ac.bgu.cs.fvm.util.Util;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
-import java.io.InputStream;
+import jdk.internal.util.xml.impl.Input;
+import sun.misc.IOUtils;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
+
 
 /**
  * Implement the methods in this class. You may add additional classes as you
@@ -899,18 +909,47 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(String filename) throws Exception {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement programGraphFromNanoPromela
-    }
+//        return programGraphFromNanoPromela(NanoPromelaFileReader.pareseNanoPromelaFile(filename));
 
-    @Override
-    public ProgramGraph<String, String> programGraphFromNanoPromelaString(String nanopromela) throws Exception {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement programGraphFromNanoPromelaString
+        File file = new File(filename);
+        InputStream stream = new FileInputStream(file);
+        return programGraphFromNanoPromela(stream);
     }
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(InputStream inputStream) throws Exception {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement programGraphFromNanoPromela
+//        return programGraphFromNanoPromela(NanoPromelaFileReader.parseNanoPromelaStream(inputStream));
+
+        StringBuilder builder = new StringBuilder();
+        String line;
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+        while ((line = reader.readLine()) != null){
+            builder.append(line + " ");
+        }
+
+        return programGraphFromNanoPromelaString(builder.toString().replace("\t", " "));
     }
+
+    @Override
+    public ProgramGraph<String, String> programGraphFromNanoPromelaString(String nanopromela) throws Exception {
+//        NanoPromelaParser.StmtContext program = pareseNanoPromelaString(nanopromela);
+//        return programGraphFromNanoPromelaString(program);
+//        return programGraphFromNanoPromela(NanoPromelaFileReader.pareseNanoPromelaString(nanopromela));
+        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement product
+    }
+
+
+    public ProgramGraph<String, String> programGraphFromNanoPromelaString(StmtContext nanopromela) throws Exception {
+
+
+        ProgramGraph<String, String> pg = createProgramGraph();
+
+
+        return pg;
+    }
+
+
 
     @Override
     public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut) {
