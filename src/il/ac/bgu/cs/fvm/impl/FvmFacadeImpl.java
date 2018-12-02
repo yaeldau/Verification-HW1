@@ -976,6 +976,9 @@ public class FvmFacadeImpl implements FvmFacade {
     }
 
     private void sub (StmtContext stmt, Map<String, Set<String>> sub, Set<PGTransition> trans){
+        if(sub.containsKey(stmt.getText()))
+            return;
+
         if (stmt.skipstmt() != null || stmt.assstmt() != null || stmt.chanreadstmt() != null ||
                 stmt.chanwritestmt() != null || stmt.atomicstmt() != null){
             if (!sub.containsKey(stmt.getText())) {
@@ -991,7 +994,7 @@ public class FvmFacadeImpl implements FvmFacade {
         else if (stmt.ifstmt() != null){
             HashSet<String> stmtSub = new HashSet<>();
             stmtSub.add("");
-            stmtSub.add(stmt.getText());
+
             for (OptionContext option : stmt.ifstmt().option()){
                 sub(option.stmt(), sub, trans);
                 stmtSub.addAll(sub.get(option.stmt().getText()));
@@ -999,28 +1002,38 @@ public class FvmFacadeImpl implements FvmFacade {
                 // trnas
                 Set<PGTransition> transCopy = new HashSet<>(trans);
                 for (PGTransition tran : transCopy){
-                    if (tran.getFrom().equals(option.stmt().getText())) {
+//                    if (sub.get(option.stmt().getText()).contains(tran.getFrom())) {
+                    if (tran.getFrom().toString().equals(option.stmt().getText())) {
                         String cond = "(" + option.boolexpr().getText() + ") && (" + tran.getCondition() + ")";
                         if ( tran.getCondition().equals(""))
-                            cond = option.boolexpr().getText();
+                            cond = "(" + option.boolexpr().getText() + ")";
                         if ( option.boolexpr().getText().equals(""))
-                            cond =  tran.getCondition();
+                            cond = "(" + tran.getCondition() + ")";
 
                         trans.add(new PGTransition(stmt.getText(), cond , tran.getAction(), tran.getTo()));
                     }
                 }
             }
+            stmtSub.add(stmt.getText());
             sub.put(stmt.getText(), stmtSub);
 
         }
         else if (stmt.dostmt() != null){
             HashSet<String> stmtSub = new HashSet<>();
             stmtSub.add("");
-            stmtSub.add(stmt.getText());
+
             for (OptionContext option : stmt.dostmt().option()){
                 sub(option.stmt(), sub, trans);
-                stmtSub.addAll(sub.get(option.stmt().getText()));
+                for (String stmt1tag : sub.get(option.stmt().getText())){
+                    if (!stmt1tag.equals(LOC_EXIT)) {
+                        stmtSub.add(stmt1tag + ";" + stmt.getText());
+//                        String s = stmt1tag + "; " + stmt.getText();
+//                        StmtContext test = NanoPromelaFileReader.pareseNanoPromelaString(s);
+//                        sub(test, sub, trans);
+                    }
+                }
             }
+            stmtSub.add(stmt.getText());
             sub.put(stmt.getText(), stmtSub);
 
             // trans
@@ -1034,7 +1047,7 @@ public class FvmFacadeImpl implements FvmFacade {
                 // rule 1+2
                 Set<PGTransition> transCopy = new HashSet<>(trans);
                 for (PGTransition tran : transCopy){
-                    if (tran.getFrom().equals(option.stmt().getText())) {
+                    if (sub.get(option.stmt().getText()).contains(tran.getFrom())) {
                         String cond = "(" + option.boolexpr().getText() + ") && (" + tran.getCondition() + ")";
                         if ( tran.getCondition().equals(""))
                             cond = "(" + option.boolexpr().getText() + ")";
@@ -1053,7 +1066,7 @@ public class FvmFacadeImpl implements FvmFacade {
 
             }
             notCond = "!(" + notCond.substring(0, notCond.length() - 4) + ")";
-            trans.add(new PGTransition(stmt.getText(), notCond,ACT_NOTHING, LOC_EXIT ));
+            trans.add(new PGTransition(stmt.getText(), notCond ,ACT_NOTHING, LOC_EXIT ));
 
         }
         else{ // concatenation
@@ -1066,31 +1079,40 @@ public class FvmFacadeImpl implements FvmFacade {
                 stmtSubLeft.addAll(sub.get(stmt.stmt(0).getText()));
                 stmtSubRest.addAll(sub.get(stmt.stmt(1).getText()));
                 for (String left : stmtSubLeft) {
-                    stmtSub.add(left + ";" + stmt.stmt(1).getText());
+                    String newLoc = left + "; " + stmt.stmt(1).getText();
+                    stmtSub.add(newLoc);
+//                    sub(NanoPromelaFileReader.pareseNanoPromelaString(newLoc), sub, trans);
                 }
                 stmtSub.addAll(stmtSubRest);
                 sub.put(stmt.getText(), stmtSub);
             }
 
             // trans
-            Set<PGTransition> transCopy = new HashSet<>(trans);
-            for (PGTransition tran : transCopy){
-                String stmt1 = stmt.stmt(0).getText();
-                String stmt2 = stmt.stmt(1).getText();
-                if(tran.getFrom().equals(stmt1)){
-                    if (tran.getTo().equals(LOC_EXIT)){
-                        trans.add(new PGTransition(stmt.getText(), tran.getCondition(), tran.getAction(), stmt2));
-                    }
-                    else{
-                        String to = tran.getTo() + ";" + stmt2;
-                        trans.add(new PGTransition(stmt.getText(), tran.getCondition(), tran.getAction(), to));
-                        sub(stmt.stmt(1), sub, trans);
-                    }
+            String stmt1 = stmt.stmt(0).getText();
+            String stmt2 = stmt.stmt(1).getText();
+            concatTrans(trans, stmt.getText(), stmt1, stmt2, new HashSet<>(),sub);
+        }
+    }
+
+    private void concatTrans (Set<PGTransition> trans, String stmt, String stmt1, String stmt2, Set<String> handle,Map<String, Set<String>> sub ){
+        if (handle.contains(stmt)) {
+            return;
+        }
+        handle.add(stmt);
+        Set<PGTransition> transCopy = new HashSet<>(trans);
+        for (PGTransition tran : transCopy) {
+            if (sub.get(stmt1).contains(tran.getFrom().toString())) {
+                if (tran.getTo().toString().equals(LOC_EXIT)) {
+                    trans.add(new PGTransition(stmt, tran.getCondition(), tran.getAction(), stmt2));
+                } else {
+                    String to = tran.getTo() + ";" + stmt2;
+                    trans.add(new PGTransition(stmt, tran.getCondition(), tran.getAction(), to));
+//                    sub(NanoPromelaFileReader.pareseNanoPromelaString(to), sub, trans);
+//                    concatTrans(trans, to, tran.getTo().toString(), stmt2, handle);
                 }
             }
         }
     }
-
 
 
 
