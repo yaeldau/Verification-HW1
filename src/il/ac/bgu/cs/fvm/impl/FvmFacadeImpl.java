@@ -31,6 +31,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 
+import static il.ac.bgu.cs.fvm.nanopromela.NanoPromelaFileReader.pareseNanoPromelaString;
+
 
 /**
  * Implement the methods in this class. You may add additional classes as you
@@ -909,45 +911,186 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(String filename) throws Exception {
-//        return programGraphFromNanoPromela(NanoPromelaFileReader.pareseNanoPromelaFile(filename));
-
-        File file = new File(filename);
-        InputStream stream = new FileInputStream(file);
-        return programGraphFromNanoPromela(stream);
+        return programGraphFromNanoPromela(NanoPromelaFileReader.pareseNanoPromelaFile(filename));
     }
+
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(InputStream inputStream) throws Exception {
-//        return programGraphFromNanoPromela(NanoPromelaFileReader.parseNanoPromelaStream(inputStream));
-
-        StringBuilder builder = new StringBuilder();
-        String line;
-
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-        while ((line = reader.readLine()) != null){
-            builder.append(line + " ");
-        }
-
-        return programGraphFromNanoPromelaString(builder.toString().replace("\t", " "));
+        return programGraphFromNanoPromela(NanoPromelaFileReader.parseNanoPromelaStream(inputStream));
     }
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromelaString(String nanopromela) throws Exception {
-//        NanoPromelaParser.StmtContext program = pareseNanoPromelaString(nanopromela);
-//        return programGraphFromNanoPromelaString(program);
-//        return programGraphFromNanoPromela(NanoPromelaFileReader.pareseNanoPromelaString(nanopromela));
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement product
+        return programGraphFromNanoPromela(NanoPromelaFileReader.pareseNanoPromelaString(nanopromela));
     }
 
 
-    public ProgramGraph<String, String> programGraphFromNanoPromelaString(StmtContext nanopromela) throws Exception {
+    final String COND_TRUE = "";
+    final String ACT_NOTHING = "";
+    final String LOC_EXIT = "";
+    private ProgramGraph<String, String> programGraphFromNanoPromela(StmtContext nanopromela) throws Exception {
 
-
+        Map<String, Set<String>> sub = new HashMap<>();
+        Set<PGTransition> trans = new HashSet<>();
+        sub(nanopromela, sub, trans);
         ProgramGraph<String, String> pg = createProgramGraph();
+
+        // locs
+//        for (String loc : sub.keySet()){
+//            pg.addLocation(loc);
+//        }
+//        pg.addLocation(""); // exit
+
+        // init
+        pg.addLocation(nanopromela.getText());
+        pg.setInitial(nanopromela.getText(), true);
+
+        // locs & trans
+        Queue<String> locs = new LinkedList<>(pg.getLocations());
+        while (!locs.isEmpty()){
+            String loc = locs.poll();
+            if (!loc.equals(LOC_EXIT)){
+                for (PGTransition tran : trans){
+                    if (tran.getFrom().equals(loc)){
+                        if(!locs.contains(tran.getTo())) {
+                            pg.addLocation(tran.getTo().toString());
+                            ((LinkedList<String>) locs).push(tran.getTo().toString());
+                        }
+
+                        pg.addTransition(tran);
+                    }
+
+                }
+            }
+        }
+
+        // trans
+//        for (PGTransition tran : trans){
+//            pg.addTransition(tran);
+//        }
+
 
 
         return pg;
     }
+
+    private void sub (StmtContext stmt, Map<String, Set<String>> sub, Set<PGTransition> trans){
+        if (stmt.skipstmt() != null || stmt.assstmt() != null || stmt.chanreadstmt() != null ||
+                stmt.chanwritestmt() != null || stmt.atomicstmt() != null){
+            if (!sub.containsKey(stmt.getText())) {
+                HashSet<String> stmtSub = new HashSet<>();
+                stmtSub.add("");
+                stmtSub.add(stmt.getText());
+                sub.put(stmt.getText(), stmtSub);
+
+                // tran
+                trans.add(new PGTransition(stmt.getText(), COND_TRUE, stmt.getText(), LOC_EXIT));
+            }
+        }
+        else if (stmt.ifstmt() != null){
+            HashSet<String> stmtSub = new HashSet<>();
+            stmtSub.add("");
+            stmtSub.add(stmt.getText());
+            for (OptionContext option : stmt.ifstmt().option()){
+                sub(option.stmt(), sub, trans);
+                stmtSub.addAll(sub.get(option.stmt().getText()));
+
+                // trnas
+                Set<PGTransition> transCopy = new HashSet<>(trans);
+                for (PGTransition tran : transCopy){
+                    if (tran.getFrom().equals(option.stmt().getText())) {
+                        String cond = "(" + option.boolexpr().getText() + ") && (" + tran.getCondition() + ")";
+                        if ( tran.getCondition().equals(""))
+                            cond = option.boolexpr().getText();
+                        if ( option.boolexpr().getText().equals(""))
+                            cond =  tran.getCondition();
+
+                        trans.add(new PGTransition(stmt.getText(), cond , tran.getAction(), tran.getTo()));
+                    }
+                }
+            }
+            sub.put(stmt.getText(), stmtSub);
+
+        }
+        else if (stmt.dostmt() != null){
+            HashSet<String> stmtSub = new HashSet<>();
+            stmtSub.add("");
+            stmtSub.add(stmt.getText());
+            for (OptionContext option : stmt.dostmt().option()){
+                sub(option.stmt(), sub, trans);
+                stmtSub.addAll(sub.get(option.stmt().getText()));
+            }
+            sub.put(stmt.getText(), stmtSub);
+
+            // trans
+            String notCond = "";
+            for (OptionContext option : stmt.dostmt().option()){
+                // rule 3
+                String gi = option.boolexpr().getText();
+                String notgi = "(" + gi + ") && ";
+                notCond += notgi;
+
+                // rule 1+2
+                Set<PGTransition> transCopy = new HashSet<>(trans);
+                for (PGTransition tran : transCopy){
+                    if (tran.getFrom().equals(option.stmt().getText())) {
+                        String cond = "(" + option.boolexpr().getText() + ") && (" + tran.getCondition() + ")";
+                        if ( tran.getCondition().equals(""))
+                            cond = "(" + option.boolexpr().getText() + ")";
+                        if ( option.boolexpr().getText().equals(""))
+                            cond =  "(" + tran.getCondition() + ")";
+
+                        if (tran.getTo().equals(LOC_EXIT)){
+                            trans.add(new PGTransition(stmt.getText(), cond , tran.getAction(), stmt.getText()));
+                        }
+                        else {
+                            String to = tran.getTo()+ ";" + stmt.getText();
+                            trans.add(new PGTransition(stmt.getText(), cond, tran.getAction(), to));
+                        }
+                    }
+                }
+
+            }
+            notCond = "!(" + notCond.substring(0, notCond.length() - 4) + ")";
+            trans.add(new PGTransition(stmt.getText(), notCond,ACT_NOTHING, LOC_EXIT ));
+
+        }
+        else{ // concatenation
+            if (!sub.containsKey(stmt.getText())) {
+                HashSet<String> stmtSub = new HashSet<>();
+                HashSet<String> stmtSubLeft = new HashSet<>();
+                HashSet<String> stmtSubRest = new HashSet<>();
+                sub(stmt.stmt(0), sub, trans);
+                sub(stmt.stmt(1), sub, trans);
+                stmtSubLeft.addAll(sub.get(stmt.stmt(0).getText()));
+                stmtSubRest.addAll(sub.get(stmt.stmt(1).getText()));
+                for (String left : stmtSubLeft) {
+                    stmtSub.add(left + ";" + stmt.stmt(1).getText());
+                }
+                stmtSub.addAll(stmtSubRest);
+                sub.put(stmt.getText(), stmtSub);
+            }
+
+            // trans
+            Set<PGTransition> transCopy = new HashSet<>(trans);
+            for (PGTransition tran : transCopy){
+                String stmt1 = stmt.stmt(0).getText();
+                String stmt2 = stmt.stmt(1).getText();
+                if(tran.getFrom().equals(stmt1)){
+                    if (tran.getTo().equals(LOC_EXIT)){
+                        trans.add(new PGTransition(stmt.getText(), tran.getCondition(), tran.getAction(), stmt2));
+                    }
+                    else{
+                        String to = tran.getTo() + ";" + stmt2;
+                        trans.add(new PGTransition(stmt.getText(), tran.getCondition(), tran.getAction(), to));
+                        sub(stmt.stmt(1), sub, trans);
+                    }
+                }
+            }
+        }
+    }
+
 
 
 

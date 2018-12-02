@@ -7,7 +7,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module" module-name="HW-Definitions" />
-    <orderEntry type="module" module-name="HW-Tests" />
+    <orderEntry type="module" module-name="HW-Definitions" exported="" />
+    <orderEntry type="module" module-name="HW-Tests" exported="" />
   </component>
 </module>
