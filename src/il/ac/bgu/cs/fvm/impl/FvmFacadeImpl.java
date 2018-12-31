@@ -16,6 +16,7 @@ import il.ac.bgu.cs.fvm.programgraph.*;
 import il.ac.bgu.cs.fvm.transitionsystem.AlternatingSequence;
 import il.ac.bgu.cs.fvm.transitionsystem.Transition;
 import il.ac.bgu.cs.fvm.transitionsystem.TransitionSystem;
+import il.ac.bgu.cs.fvm.util.CollectionHelper;
 import il.ac.bgu.cs.fvm.util.Pair;
 import il.ac.bgu.cs.fvm.util.Util;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
@@ -1074,7 +1075,65 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement product
+        TransitionSystem<Pair<Sts, Saut>, A, Saut> tsProd = new TransitionSystemImpl();
+        // actions
+        tsProd.addAllActions(ts.getActions());
+        // aps
+        tsProd.addAllAtomicPropositions(aut.getTransitions().keySet());
+        // states
+        Set<Sts> S = ts.getStates();
+        Set<Saut> Q = aut.getTransitions().keySet();
+        (CollectionHelper.product(S,Q)).forEach(newState -> tsProd.addState(newState));
+        // inits
+        for (Sts sts: ts.getInitialStates()) {
+            for (Saut saut : aut.getInitialStates()){
+                for (Saut next: aut.nextStates(saut, ts.getLabel(sts))) {
+                    tsProd.setInitial(new Pair<>(sts, next), true);
+                }
+            }
+        }
+        // labels
+        for (Pair<Sts, Saut> p: tsProd.getStates()) {
+            tsProd.addToLabel(p, p.second);
+        }
+        // trans
+        for( Transition<Sts, A> tran : ts.getTransitions()){
+            for (Saut saut : aut.getTransitions().keySet()) {
+                for (Saut next : aut.nextStates(saut, ts.getLabel(tran.getTo()))) {
+                    Pair<Sts, Saut> from = new Pair<>(tran.getFrom(), saut);
+                    Pair<Sts, Saut> to = new Pair<>(tran.getTo(), next);
+                    tsProd.addTransition(new Transition<>(from, tran.getAction(), to));
+                }
+            }
+        }
+
+        Set<Pair<Sts,Saut>> states = new HashSet<>(tsProd.getStates());
+        Set<Transition<Pair<Sts,Saut>, A>> trans = new HashSet<>(tsProd.getTransitions());
+        Set<Pair<Sts,Saut>> newStates = reach(tsProd);
+        for (Pair<Sts,Saut> s : states) {
+            if (!newStates.contains(s)) {
+                for (Transition t : trans){
+                    if (t.getFrom().equals(s) || t.getTo().equals(s)) {
+                        tsProd.removeTransition(t);
+                    }
+                }
+                tsProd.removeLabel(s, s.second);
+                tsProd.removeState(s);
+            }
+        }
+
+        Set<Saut> actualLabels = new HashSet<>();
+        for(Pair<Sts,Saut> p : tsProd.getStates()){
+            actualLabels.addAll(tsProd.getLabel(p));
+        }
+        Set<Saut> newLabels = new HashSet<>(tsProd.getAtomicPropositions());
+        for(Saut ap : newLabels){
+            if (!actualLabels.contains(ap)){
+                tsProd.removeAtomicProposition(ap);
+            }
+        }
+
+        return tsProd;
     }
 
     @Override
