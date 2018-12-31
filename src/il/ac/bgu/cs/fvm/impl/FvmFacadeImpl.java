@@ -22,6 +22,7 @@ import il.ac.bgu.cs.fvm.util.Util;
 import il.ac.bgu.cs.fvm.verification.VeficationSucceeded;
 import il.ac.bgu.cs.fvm.verification.VerificationFailed;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
+import il.ac.bgu.cs.fvm.verification.VerificationSucceeded;
 
 import java.io.*;
 import java.util.*;
@@ -1101,10 +1102,16 @@ public class FvmFacadeImpl implements FvmFacade {
         // trans
         for( Transition<Sts, A> tran : ts.getTransitions()){
             for (Saut saut : aut.getTransitions().keySet()) {
-                for (Saut next : aut.nextStates(saut, ts.getLabel(tran.getTo()))) {
-                    Pair<Sts, Saut> from = new Pair<>(tran.getFrom(), saut);
-                    Pair<Sts, Saut> to = new Pair<>(tran.getTo(), next);
-                    tsProd.addTransition(new Transition<>(from, tran.getAction(), to));
+                Sts to2 = tran.getTo();
+                Set<P> ls = ts.getLabel(to2);
+                Set<Saut> nexts = aut.nextStates(saut, ls);
+                if (nexts != null) {
+                    for (Saut next : nexts) {
+//                  for (Saut next : aut.nextStates(saut, ts.getLabel(tran.getTo()))) {
+                        Pair<Sts, Saut> from = new Pair<>(tran.getFrom(), saut);
+                        Pair<Sts, Saut> to = new Pair<>(tran.getTo(), next);
+                        tsProd.addTransition(new Transition<>(from, tran.getAction(), to));
+                    }
                 }
             }
         }
@@ -1156,7 +1163,7 @@ public class FvmFacadeImpl implements FvmFacade {
             }
             // s is part of cycle:
             List<Pair<S, Saut>> cycle = new LinkedList<>();
-            boolean found = findCycle(tsProd, s, cycle, new HashSet<>());
+            boolean found = findCycle(tsProd, s, s, cycle, new HashSet<>());
             if (found) {
 
                 VerificationResult vf = new VerificationFailed();
@@ -1166,19 +1173,20 @@ public class FvmFacadeImpl implements FvmFacade {
             }
         }
 
-        return new VeficationSucceeded<>();
+        return new VerificationSucceeded<>();
+
     }
 
     private <S, Saut, A> boolean findCycle (TransitionSystem<Pair<S, Saut>, A, Saut> tsProd,
-                                                        Pair<S, Saut> s, List<Pair<S, Saut>> cycle, Set states){
+                                                        Pair<S, Saut> s, Pair<S, Saut> nextS, List<Pair<S, Saut>> cycle, Set states){
 
-        for(Pair<S, Saut> next : post(tsProd, s)){
+        for(Pair<S, Saut> next : post(tsProd, nextS)){
             if (next.equals(s)) {
                 return true;
             }
             if (!states.contains(next)){
                 states.add(next);
-                if (findCycle(tsProd, next, cycle, states)){
+                if (findCycle(tsProd, s, next, cycle, states)){
                     cycle.add(next);
                     return true;
                 }
