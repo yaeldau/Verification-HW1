@@ -19,6 +19,8 @@ import il.ac.bgu.cs.fvm.transitionsystem.TransitionSystem;
 import il.ac.bgu.cs.fvm.util.CollectionHelper;
 import il.ac.bgu.cs.fvm.util.Pair;
 import il.ac.bgu.cs.fvm.util.Util;
+import il.ac.bgu.cs.fvm.verification.VeficationSucceeded;
+import il.ac.bgu.cs.fvm.verification.VerificationFailed;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
 
 import java.io.*;
@@ -1138,7 +1140,52 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P, Saut> VerificationResult<S> verifyAnOmegaRegularProperty(TransitionSystem<S, A, P> ts, Automaton<Saut, P> aut) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement verifyAnOmegaRegularProperty
+        //1. build predicate
+        //2. for-each all states
+        //3.    labels(s) < !predicate
+        //4.    cycle(S)
+        //5.    if true -> return
+
+        TransitionSystem<Pair<S, Saut>, A, Saut> tsProd = product(ts, aut);
+        Set<Saut> predicate = new HashSet<>(aut.getAcceptingStates());
+        for(Pair<S, Saut> s : tsProd.getStates()){
+            // s satisfy the predicate:
+            for (Saut l : tsProd.getLabel(s)){
+                if (predicate.contains(l))
+                    break;
+            }
+            // s is part of cycle:
+            List<Pair<S, Saut>> cycle = new LinkedList<>();
+            boolean found = findCycle(tsProd, s, cycle, new HashSet<>());
+            if (found) {
+
+                VerificationResult vf = new VerificationFailed();
+//                ((VerificationFailed) vf).setPrefix();
+                ((VerificationFailed) vf).setCycle(cycle);
+                return vf;
+            }
+        }
+
+        return new VeficationSucceeded<>();
+    }
+
+    private <S, Saut, A> boolean findCycle (TransitionSystem<Pair<S, Saut>, A, Saut> tsProd,
+                                                        Pair<S, Saut> s, List<Pair<S, Saut>> cycle, Set states){
+
+        for(Pair<S, Saut> next : post(tsProd, s)){
+            if (next.equals(s)) {
+                return true;
+            }
+            if (!states.contains(next)){
+                states.add(next);
+                if (findCycle(tsProd, next, cycle, states)){
+                    cycle.add(next);
+                    return true;
+                }
+
+            }
+        }
+        return false;
     }
 
     @Override
