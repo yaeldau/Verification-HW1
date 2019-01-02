@@ -46,44 +46,45 @@ public class MutualExclusionDemo {
 
         // Test mutual exclusion
         {
-            System.out.println("mutual exclusion test:");
-            System.out.println("build an automata for the complementary language - a language that accepts a state" +
-                    "\n with the labels \"crit1 and crit2\".");
+            System.out.println("MUTUAL EXCLUSION test:");
+            System.out.println("Build an automata for the complementary language - a language that accepts a state" +
+                    "\nwith the labels \"crit1 and crit2\".");
             Automaton<String, String> aut = new AutomataFactory<>(ts).eventuallyPhiAut(a -> a.contains("crit1") && a.contains("crit2"));
-            System.out.println("verify whether the ts satisfies the omega regular property:");
-            System.out.println("build the predict. ");
-            System.out.println("for each reachable state s in the product of ts and automata: ");
-            System.out.println("    check if the s satisfied the predicate");
-            System.out.println("    if not - check if is part of a cycle in ts");
-            System.out.println("        if cycle found - ts doesn't satisfy the omega regular property- " +
-                    "\n 2 processes are in the critical section at the same time = no mutual exclusion." );
-            System.out.println("    if not exist such s - ts satisfies the omega regular property -" +
-                    "\n ts is providing mutual exclusion" );
+            System.out.println("Verify whether the ts satisfies the omega regular property:");
+            System.out.println("Build the predict. ");
+            System.out.println("For each reachable state s in the product of ts and automata: ");
+            System.out.println("    Check if the s satisfied the predicate");
+            System.out.println("    If not - check if is part of a cycle in ts");
+            System.out.println("        If cycle found - ts doesn't satisfy the omega regular property- " +
+                             "\n        2 processes are in the critical section at the same time = no mutual exclusion." );
+            System.out.println("    If not exist such s - ts satisfies the omega regular property -" +
+                             "\n    ts is providing mutual exclusion" );
             VerificationResult<Pair<Pair<String, String>, Map<String, Object>>> vr = fvmFacadeImpl.verifyAnOmegaRegularProperty(ts, aut);
-            System.out.println("the result is " + (vr instanceof VerificationSucceeded ? "succeeded" : "failed"));
+            System.out.println("The result is " + (vr instanceof VerificationSucceeded ? "succeeded" : "failed"));
         }
 
+        System.out.println();
         // Test a liveness property - that after every state that satisfies
         // wait1 we must eventually have a state that satisfies crit1
         {
-            System.out.println("liveness test:");
-            System.out.println("build an automata for the complementary language - a language in which a state" +
-                    "\n with the label \"wait\" is reached and a state with the label \"crit\" is not reach afterwords.");
+            System.out.println("LIVENESS test:");
+            System.out.println("Build an automata for the complementary language - a language in which a state" +
+                    "\nwith the label \"wait\" is reached and a state with the label \"crit\" is not reach afterwords.");
             Automaton<String, String> aut = new AutomataFactory<>(ts).eventuallyPhi1AndThenAlwaysPhi2Aut(a -> a.contains("wait1"), a -> !a.contains("crit1"));
-            System.out.println("verify whether the ts satisfies the omega regular property:");
-            System.out.println("build the predict. ");
-            System.out.println("for each reachable state s in the product of ts and automata: ");
+            System.out.println("Verify whether the ts satisfies the omega regular property:");
+            System.out.println("Build the predict. ");
+            System.out.println("For each reachable state s in the product of ts and automata: ");
             System.out.println("    check if the s satisfied the predicate");
-            System.out.println("    if not - check if is part of a cycle in ts");
-            System.out.println("        if cycle found - ts doesn't satisfy the omega regular property- " +
-                    "\n process has been waiting and didn't get into the critical section = no liveness." );
-            System.out.println("    if not exist such s - ts satisfies the omega regular property -" +
-                    "\n ts is providing liveness" );
+            System.out.println("    If not - check if is part of a cycle in ts");
+            System.out.println("        If cycle found - ts doesn't satisfy the omega regular property- " +
+                             "\n        process has been waiting and didn't get into the critical section = no liveness." );
+            System.out.println("    If not exist such s - ts satisfies the omega regular property -" +
+                             "\n    ts is providing liveness" );
             VerificationResult<Pair<Pair<String, String>, Map<String, Object>>> vr = fvmFacadeImpl.verifyAnOmegaRegularProperty(ts, aut);
-            System.out.println("the result is " + (vr instanceof VerificationSucceeded ? "succeeded" : "failed"));
+            System.out.println("The result is " + (vr instanceof VerificationSucceeded ? "succeeded" : "failed"));
         }
 
-        System.out.println("works!");
+
     }
 
     // Add labels to ts for formulating mutual exclusion properties.
