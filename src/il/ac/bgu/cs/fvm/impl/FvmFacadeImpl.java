@@ -23,6 +23,7 @@ import il.ac.bgu.cs.fvm.verification.VeficationSucceeded;
 import il.ac.bgu.cs.fvm.verification.VerificationFailed;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
 import il.ac.bgu.cs.fvm.verification.VerificationSucceeded;
+import org.svvrl.goal.core.util.Lists;
 
 import java.io.*;
 import java.util.*;
@@ -1158,36 +1159,50 @@ public class FvmFacadeImpl implements FvmFacade {
         for(Pair<S, Saut> s : tsProd.getStates()){
             // s satisfy the predicate:
             for (Saut l : tsProd.getLabel(s)){
-                if (predicate.contains(l))
-                    break;
-            }
-            // s is part of cycle:
-            List<Pair<S, Saut>> cycle = new LinkedList<>();
-            boolean found = findCycle(tsProd, s, s, cycle, new HashSet<>());
-            if (found) {
+                if (predicate.contains(l)){
+                    // s is part of cycle:
+                    List<S> cycle = new LinkedList<>();
+                    boolean foundCycle = findPath(tsProd, s, s, cycle, new HashSet<>());
+                    if (foundCycle) {
+                        VerificationResult vf = new VerificationFailed();
+                        List<S> prefix = new LinkedList<>();
+                        for(Pair<S, Saut> init: tsProd.getInitialStates()){
+                            if(findPath(tsProd, s, init, prefix, new HashSet<>())){
+                                prefix.add(init.first);
+                                Collections.reverse(prefix);
+                                prefix.add(s.first);
+                                ((VerificationFailed) vf).setPrefix(prefix);
+                                break;
+                            }
+                        }
 
-                VerificationResult vf = new VerificationFailed();
-//                ((VerificationFailed) vf).setPrefix();
-                ((VerificationFailed) vf).setCycle(cycle);
-                return vf;
+                        Collections.reverse(cycle);
+                        cycle.add(s.first);
+                        ((VerificationFailed) vf).setCycle(cycle);
+                        return vf;
+                    }
+                }
             }
+
         }
 
         return new VerificationSucceeded<>();
 
     }
 
-    private <S, Saut, A> boolean findCycle (TransitionSystem<Pair<S, Saut>, A, Saut> tsProd,
-                                                        Pair<S, Saut> s, Pair<S, Saut> nextS, List<Pair<S, Saut>> cycle, Set states){
+    private <S, Saut, A> boolean findPath (TransitionSystem<Pair<S, Saut>, A, Saut> tsProd,
+                                           Pair<S, Saut> s, Pair<S, Saut> nextS, List<S> path, Set states){
 
         for(Pair<S, Saut> next : post(tsProd, nextS)){
-            if (next.equals(s)) {
+
+            if ((next.first).equals(s.first)) {
+//                path.add(s);
                 return true;
             }
             if (!states.contains(next)){
                 states.add(next);
-                if (findCycle(tsProd, s, next, cycle, states)){
-                    cycle.add(next);
+                if (findPath(tsProd, s, next, path, states)){
+                    path.add(next.first);
                     return true;
                 }
 
