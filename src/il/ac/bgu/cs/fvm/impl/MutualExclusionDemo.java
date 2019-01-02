@@ -48,7 +48,10 @@ public class MutualExclusionDemo {
         {
             System.out.println("mutual exclusion");
             System.out.println("predicat = {crit1, crit2}");
+            System.out.println("build an automata for the complementary language");
             Automaton<String, String> aut = new AutomataFactory<>(ts).eventuallyPhiAut(a -> a.contains("crit1") && a.contains("crit2"));
+            System.out.println("verify whether the ts satisfies the omega regular property:");
+            System.out.println("buik");
             VerificationResult<Pair<Pair<String, String>, Map<String, Object>>> vr = fvmFacadeImpl.verifyAnOmegaRegularProperty(ts, aut);
 
         }
