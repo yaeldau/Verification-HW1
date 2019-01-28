@@ -1218,7 +1218,54 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement GNBA2NBA
+        return GNBA2NBA_WithCopies(mulAut);
+    }
+
+    private <S, L> Automaton<Pair<S, Integer>, L> GNBA2NBA_WithCopies(MultiColorAutomaton<S, L> mulAut){
+        Automaton<Pair<S, Integer>, L> aut = new Automaton<>();
+
+        List<Integer> copies = new ArrayList<>(mulAut.getColors());
+
+        for(Integer copy : copies){
+            int nextCopy = getNext(copy, copies);
+
+            for(Map.Entry<S, Map<Set<L>, Set<S>>> tran : mulAut.getTransitions().entrySet()){
+                Pair<S, Integer> from = new Pair<>(tran.getKey(), copy);
+                AddTransitions(tran, copy, nextCopy, mulAut, from, aut);
+
+                if(copies.indexOf(copy) == 0){//Add initial and accepting states
+                    AddInitsAndAccepting(mulAut, tran, copy, aut, from);
+                }
+            }
+        }
+        return aut;
+    }
+
+    private int getNext(Integer copy, List<Integer> copies){
+        if(!copy.equals(copies.get(copies.size()-1)))
+            return copies.get(copies.indexOf(copy)+1);
+        else
+            return copies.get(0);
+    }
+
+    private <S,L> void AddInitsAndAccepting(MultiColorAutomaton<S, L> mulAut, Map.Entry<S,
+            Map<Set<L>, Set<S>>> tran,Integer copy, Automaton<Pair<S, Integer>, L> aut,  Pair<S, Integer> from){
+        if(mulAut.getInitialStates().contains(tran.getKey()))
+            aut.setInitial(from);
+        if(mulAut.getAcceptingStates(copy).contains(tran.getKey()))
+            aut.setAccepting(from);
+    }
+
+    private <S,L> void AddTransitions(Map.Entry<S, Map<Set<L>, Set<S>>> tran, Integer copy, Integer nextCopy,
+             MultiColorAutomaton<S, L> mulAut, Pair<S, Integer> from, Automaton<Pair<S, Integer>, L> aut) {
+        for (Map.Entry<Set<L>, Set<S>> action : tran.getValue().entrySet()) {
+            for (S state : action.getValue()) {//add transitions
+                if (!mulAut.getAcceptingStates(copy).contains(tran.getKey()))
+                    aut.addTransition(from, action.getKey(), new Pair<>(state, copy));
+                else
+                    aut.addTransition(from, action.getKey(), new Pair<>(state, nextCopy));
+            }
+        }
     }
 
 }
