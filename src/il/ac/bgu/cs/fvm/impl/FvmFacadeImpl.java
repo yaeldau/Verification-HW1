@@ -8,7 +8,7 @@ import il.ac.bgu.cs.fvm.channelsystem.ParserBasedInterleavingActDef;
 import il.ac.bgu.cs.fvm.circuits.Circuit;
 import il.ac.bgu.cs.fvm.exceptions.ActionNotFoundException;
 import il.ac.bgu.cs.fvm.exceptions.StateNotFoundException;
-import il.ac.bgu.cs.fvm.ltl.LTL;
+import il.ac.bgu.cs.fvm.ltl.*;
 import il.ac.bgu.cs.fvm.nanopromela.NanoPromelaFileReader;
 import il.ac.bgu.cs.fvm.nanopromela.NanoPromelaParser.OptionContext;
 import il.ac.bgu.cs.fvm.nanopromela.NanoPromelaParser.StmtContext;
@@ -19,11 +19,9 @@ import il.ac.bgu.cs.fvm.transitionsystem.TransitionSystem;
 import il.ac.bgu.cs.fvm.util.CollectionHelper;
 import il.ac.bgu.cs.fvm.util.Pair;
 import il.ac.bgu.cs.fvm.util.Util;
-import il.ac.bgu.cs.fvm.verification.VeficationSucceeded;
 import il.ac.bgu.cs.fvm.verification.VerificationFailed;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
 import il.ac.bgu.cs.fvm.verification.VerificationSucceeded;
-import org.svvrl.goal.core.util.Lists;
 
 import java.io.*;
 import java.util.*;
@@ -1211,10 +1209,202 @@ public class FvmFacadeImpl implements FvmFacade {
         return false;
     }
 
+    //------------------------------------------------------------------------------------------------------
+
+
     @Override
     public <L> Automaton<?, L> LTL2NBA(LTL<L> ltl) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement LTL2NBA
+
+        List<LTL<L>> pnf = new LinkedList<>();
+        LTL2PNF(ltl, pnf);
+
+        Set<Set<LTL<L>>> closure = new HashSet<>();
+        createClosure(pnf, closure);
+
+        MultiColorAutomaton<Set<LTL<L>>, L> gnba = createGNBA(closure, pnf);
+
+        // inits
+        for(Set<LTL<L>> state : gnba.getTransitions().keySet()){
+            if(state.contains(ltl))
+                gnba.setInitial(state);
+        }
+
+        setAcceptingStates(gnba, pnf);
+
+        return GNBA2NBA(gnba);
     }
+
+    private <L> void LTL2PNF(LTL<L> ltl, List<LTL<L>> pnf){
+
+        if(ltl instanceof TRUE || ltl instanceof AP){
+            if(!pnf.contains(ltl))
+                pnf.add(ltl);
+        }
+        else if(ltl instanceof Not){
+            LTL2PNF(((Not<L>) ltl).getInner(), pnf);
+        }
+        else if(ltl instanceof Next){
+            LTL2PNF(((Next<L>) ltl).getInner(), pnf);
+            if(!pnf.contains(ltl))
+                pnf.add(ltl);
+        }
+        else if(ltl instanceof And){
+            LTL2PNF(((And<L>) ltl).getLeft(), pnf);
+            LTL2PNF(((And<L>) ltl).getRight(), pnf);
+            if(!pnf.contains(ltl))
+                pnf.add(ltl);
+        }
+        else if(ltl instanceof Until){
+            LTL2PNF(((Until<L>) ltl).getLeft(), pnf);
+            LTL2PNF(((Until<L>) ltl).getRight(), pnf);
+            if(!pnf.contains(ltl))
+                pnf.add(ltl);
+        }
+    }
+
+    private <L> void createClosure(List<LTL<L>> pnf, Set<Set<LTL<L>>> states) {
+        //true
+        if(pnf.contains(LTL.true_())){
+            Set<LTL<L>> state = new HashSet<>();
+            state.add(LTL.true_());
+            states.add(state);
+        }
+        else{
+            states.add(new HashSet<>());
+        }
+
+        for(LTL<L> ltl : pnf){
+            //AP | Next
+            if(ltl instanceof AP || ltl instanceof Next){
+                Set<Set<LTL<L>>> iter = new HashSet<>(states);
+                for(Set<LTL<L>> state : iter){
+                    addStates(states, state, ltl);
+                }
+            }
+            //Until
+            else if(ltl instanceof Until){
+                Set<Set<LTL<L>>> iter = new HashSet<>(states);
+                for(Set<LTL<L>> state : iter){
+                    if(state.contains(((Until<L>) ltl).getRight()))
+                        state.add(ltl);
+                    else if(state.contains(((Until<L>) ltl).getLeft())){
+                        addStates(states, state, ltl);
+                    }
+                    else
+                        state.add(LTL.not(ltl));
+                }
+            }
+            //And
+            else if(ltl instanceof And){
+                Set<Set<LTL<L>>> iter = new HashSet<>(states);
+                for(Set<LTL<L>> state : iter){
+                    if(state.contains(((And<L>) ltl).getLeft()) && state.contains(((And<L>) ltl).getRight()))
+                        state.add(ltl);
+                    else
+                        state.add(LTL.not(ltl));
+                }
+            }
+
+
+        }
+    }
+
+    private <L> void addStates(Set<Set<LTL<L>>> states, Set<LTL<L>> state, LTL<L> ltl){
+        Set<LTL<L>> neg = new HashSet<>(state);
+        state.add(ltl);
+        neg.add(LTL.not(ltl));
+        states.add(neg);
+    }
+
+    private <L> void setAcceptingStates(MultiColorAutomaton<Set<LTL<L>>, L> gnba, List<LTL<L>> pnf){
+
+        List<LTL<L>> untils = new ArrayList<>();
+        for(LTL<L> ltl : pnf){
+            if(ltl instanceof Until)
+                untils.add(ltl);
+        }
+
+        if(untils.size() > 0) {
+            for(Set<LTL<L>> state : gnba.getTransitions().keySet()){
+                for(LTL<L> until : untils){
+                    if(!state.contains(until) || state.contains(((Until<L>)until).getRight()))
+                        gnba.setAccepting(state, untils.indexOf(until));
+                }
+            }
+        }
+        else{
+            for (Set<LTL<L>> state : gnba.getTransitions().keySet()) {
+                gnba.setAccepting(state, 0);
+            }
+        }
+    }
+
+    private <L> MultiColorAutomaton<Set<LTL<L>>, L> createGNBA(Set<Set<LTL<L>>> closure, List<LTL<L>> pnf){
+        Set<Until<L>> until = new HashSet<>();
+        Set<Next<L>> next = new HashSet<>();
+        for(LTL<L> ltl : pnf){
+            if(ltl instanceof Until)
+                until.add((Until<L>)ltl);
+            else if(ltl instanceof Next)
+                next.add((Next<L>)ltl);
+
+        }
+
+        MultiColorAutomaton<Set<LTL<L>>, L> aut = new MultiColorAutomaton<>();
+        for(Set<LTL<L>> source : closure){
+            for(Set<LTL<L>> dest : closure){
+                //next
+                boolean createTranNext = handleNext(next, source, dest);
+                //until
+                boolean createTranUntil = handleUntil(until, source, dest);
+                //AP
+                handleAP(aut, source, dest, createTranNext&&createTranUntil);
+            }
+        }
+        return aut;
+    }
+
+    private <L> void handleAP(MultiColorAutomaton<Set<LTL<L>>, L> aut, Set<LTL<L>> source, Set<LTL<L>> dest, boolean createTran) {
+        if(createTran){
+            Set<L> ap = new HashSet<>();
+            for(LTL<L> ltl : source){
+                if(ltl instanceof AP)
+                    ap.add(((AP<L>) ltl).getName());
+                aut.addTransition(source, ap, dest);
+            }
+        }
+    }
+
+    private <L> boolean handleUntil(Set<Until<L>> until, Set<LTL<L>> source, Set<LTL<L>> dest) {
+        for(Until<L> l1 : until){
+            if(source.contains(l1.getRight()) || (source.contains(l1.getLeft()) && dest.contains(l1))){
+                if(!source.contains(l1)){
+                    return false;
+                }
+            }
+            else if(source.contains(l1)){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private <L> boolean handleNext(Set<Next<L>> next, Set<LTL<L>> source, Set<LTL<L>> dest) {
+        for(Next<L> l1 : next){
+            if(source.contains(l1)){
+                if(!dest.contains(l1.getInner())){
+                    return false;
+                }
+            }
+            else if(dest.contains(l1.getInner())){
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+    //------------------------------------------------------------------------------------------------------
 
     @Override
     public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
@@ -1269,3 +1459,7 @@ public class FvmFacadeImpl implements FvmFacade {
     }
 
 }
+
+
+
+
